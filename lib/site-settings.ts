@@ -47,21 +47,32 @@ export async function getSiteSettings() {
 }
 
 export async function getSiteSetting(key: string, fallback = "") {
-  const row = await db.query.siteSettings.findFirst({
-    where: eq(siteSettings.key, key),
-  });
+  try {
+    const row = await db.query.siteSettings.findFirst({
+      where: eq(siteSettings.key, key),
+    });
 
-  return row?.value ?? fallback;
+    return row?.value ?? fallback;
+  } catch {
+    // During builds or misconfigured environments (e.g. no DB connectivity),
+    // fall back to a safe default so the app can still render.
+    return fallback;
+  }
 }
 
 async function ensureSiteSetting(key: string, fallback: string) {
-  const value = await getSiteSetting(key);
+  const value = await getSiteSetting(key, "");
 
   if (value) {
     return value;
   }
 
-  await setSiteSetting(key, fallback);
+  try {
+    await setSiteSetting(key, fallback);
+  } catch {
+    // If we can't reach the DB (e.g. during build), just return the fallback.
+    return fallback;
+  }
 
   return fallback;
 }

@@ -2,6 +2,12 @@ import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse, type NextFetchEvent } from "next/server";
 
 const HOME_SEEN_COOKIE = "scentora_home_seen";
+const PUBLIC_AUTH_PATHS = [
+  "/sign-in",
+  "/sign-up",
+  "/logout",
+  "/forgot-password",
+];
 
 const clerk = clerkMiddleware();
 
@@ -14,12 +20,15 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
 
   const { pathname } = request.nextUrl;
   const hasSeenHome = request.cookies.has(HOME_SEEN_COOKIE);
+  const isPublicAuthPath = PUBLIC_AUTH_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
 
   if (pathname.startsWith("/products")) {
     return NextResponse.next();
   }
 
-  if (pathname !== "/" && !hasSeenHome) {
+  if (pathname !== "/" && !hasSeenHome && !isPublicAuthPath) {
     const homeUrl = request.nextUrl.clone();
     homeUrl.pathname = "/";
     homeUrl.search = "";

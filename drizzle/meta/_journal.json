@@ -85,6 +85,34 @@
       "when": 1779994100000,
       "tag": "0011_add_missing_purchase_price",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779994200000,
+      "tag": "0012_user_coupons",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779994300000,
+      "tag": "0013_product_variants",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1780531200000,
+      "tag": "0014_product_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1780617600000,
+      "tag": "0015_order_status_lifecycle",
+      "breakpoints": true
     }
   ]
 }

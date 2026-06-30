@@ -14,19 +14,12 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { orderStatusValues } from "@/lib/order-status";
+
+export { orderStatusValues } from "@/lib/order-status";
 
 export const roleValues = ["USER", "ADMIN"] as const;
 export const productTagValues = ["HOT", "NEW", "POPULAR", "LUXURY"] as const;
-export const orderStatusValues = [
-  "PENDING",
-  "CONFIRMED",
-  "PAID",
-  "PROCESSING",
-  "SHIPPED",
-  "DELIVERED",
-  "CANCELLED",
-  "REFUNDED",
-] as const;
 export const paymentStatusValues = [
   "PENDING",
   "SUCCESS",
@@ -232,6 +225,32 @@ export const wishlistItems = pgTable(
   ],
 );
 
+export const productReviews = pgTable(
+  "product_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    rating: integer("rating").notNull(),
+    title: text("title"),
+    comment: text("comment").notNull(),
+    verifiedPurchase: boolean("verified_purchase").notNull().default(false),
+    isApproved: boolean("is_approved").notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("product_reviews_product_user_unique").on(table.productId, table.userId),
+    index("product_reviews_product_id_idx").on(table.productId),
+    index("product_reviews_user_id_idx").on(table.userId),
+    index("product_reviews_is_approved_idx").on(table.isApproved),
+    index("product_reviews_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export const orders = pgTable(
   "orders",
   {
@@ -404,6 +423,7 @@ export const userCoupons = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   cartItems: many(cartItems),
   wishlistItems: many(wishlistItems),
+  productReviews: many(productReviews),
   orders: many(orders),
   sessions: many(userSessions),
   coupons: many(userCoupons),
@@ -468,6 +488,17 @@ export const wishlistItemsRelations = relations(wishlistItems, ({ one }) => ({
   product: one(products, {
     fields: [wishlistItems.productId],
     references: [products.id],
+  }),
+}));
+
+export const productReviewsRelations = relations(productReviews, ({ one }) => ({
+  product: one(products, {
+    fields: [productReviews.productId],
+    references: [products.id],
+  }),
+  user: one(users, {
+    fields: [productReviews.userId],
+    references: [users.id],
   }),
 }));
 

@@ -114,8 +114,7 @@ export default function CheckoutForm() {
 
       window.dispatchEvent(new Event("scentora:cart-updated"));
       clearGuestCart();
-      sessionStorage.setItem("scentora:last-order-id", body.data.orderId);
-      router.replace("/order-success");
+      router.replace("/account");
       router.refresh();
     } catch (checkoutError) {
       setError(
@@ -144,7 +143,7 @@ export default function CheckoutForm() {
   );
 
   return (
-    <main className="min-h-screen bg-[#f6f1ea] text-textPrimary">
+    <main className="min-h-screen bg-pageBg text-textPrimary">
       <section className="mx-auto w-full max-w-[900px] px-4 py-10 lg:px-6">
         <div className="mb-8 flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-lg bg-black text-white">

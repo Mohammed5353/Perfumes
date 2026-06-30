@@ -108,7 +108,7 @@ export async function getProductSalesMetrics(): Promise<ProductSalesMetric[]> {
     .leftJoin(orderItems, eq(orderItems.productId, products.id))
     .leftJoin(
       orders,
-      sql`${orders.id} = ${orderItems.orderId} and ${orders.status} not in ('CANCELLED', 'REFUNDED')`,
+      sql`${orders.id} = ${orderItems.orderId} and ${orders.status} not in ('CANCELLED', 'REJECTED', 'REFUNDED', 'RETURNED')`,
     )
     .where(eq(products.isActive, true))
     .groupBy(products.id);

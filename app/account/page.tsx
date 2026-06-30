@@ -5,6 +5,7 @@ import { Package, ShoppingBag, UserRound } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { cartItems, orders, products } from "@/lib/db/schema";
+import { formatOrderStatus } from "@/lib/order-status";
 import { requireCustomerUser } from "@/lib/user-auth";
 
 export const metadata: Metadata = {
@@ -16,7 +17,7 @@ export default async function AccountPage() {
   const user = await requireCustomerUser();
 
   if (!user) {
-    redirect("/login");
+    redirect("/sign-in?redirect_url=/account");
   }
 
   const [cartRows, orderRows] = await Promise.all([
@@ -56,7 +57,7 @@ export default async function AccountPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#f6f1ea] text-textPrimary">
+    <main className="min-h-screen bg-pageBg text-textPrimary">
       <section className="mx-auto w-full max-w-[1100px] px-4 py-10 lg:px-6">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-center gap-3">
@@ -127,7 +128,7 @@ export default async function AccountPage() {
                       </span>
                     </div>
                     <p className="mt-1 text-textSecondary">
-                      {order.status} / {order.paymentStatus} /{" "}
+                      {formatOrderStatus(order.status)} / {order.paymentStatus} /{" "}
                       {order.createdAt.toLocaleDateString()}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-1.5">
@@ -137,12 +138,12 @@ export default async function AccountPage() {
                             key={entry.id}
                             className="rounded-full bg-[#f6f1ea] px-2 py-1 text-[11px] font-semibold text-textSecondary"
                           >
-                            {entry.status}
+                            {formatOrderStatus(entry.status)}
                           </span>
                         ))
                       ) : (
                         <span className="rounded-full bg-[#f6f1ea] px-2 py-1 text-[11px] font-semibold text-textSecondary">
-                          {order.status}
+                          {formatOrderStatus(order.status)}
                         </span>
                       )}
                     </div>

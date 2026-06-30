@@ -88,7 +88,7 @@ export default function ForgotPasswordForm() {
         throw new Error("error" in body ? body.error : "Unable to reset password");
       }
 
-      router.replace("/login");
+      router.replace("/sign-in");
       router.refresh();
     } catch (resetError) {
       setError(resetError instanceof Error ? resetError.message : "Unable to reset password");
@@ -98,7 +98,7 @@ export default function ForgotPasswordForm() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f1ea] text-textPrimary">
+    <main className="min-h-screen bg-pageBg text-textPrimary">
       <section className="mx-auto flex min-h-screen w-full max-w-[1300px] items-center justify-center px-4 py-10 lg:px-6">
         <div className="w-full max-w-[460px] rounded-lg border border-black/10 bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-8">
@@ -197,7 +197,7 @@ export default function ForgotPasswordForm() {
           <div className="mt-6 border-t border-black/10 pt-6">
             <p className="text-center text-sm text-textSecondary">
               Remembered it?{" "}
-              <Link href="/login" className="font-medium text-textPrimary hover:opacity-70">
+              <Link href="/sign-in" className="font-medium text-textPrimary hover:opacity-70">
                 Sign in
               </Link>
             </p>

@@ -5,7 +5,9 @@ import { Breadcrumb } from "@/components/common/Breadcrumb";
 import Newsletter from "@/components/common/Newsletter";
 import ProductCardLarge from "@/components/ProductCardLarge";
 import ProductDetailVariantClient from "@/components/ProductDetailVariantClient";
+import ProductReviews from "@/components/ProductReviews";
 import { findProductByIdOrSlug, getProductVariants, getRelatedProducts } from "@/lib/api/catalog";
+import { getProductReviewFeed } from "@/lib/api/reviews";
 import { getWishlistProductIdSet } from "@/lib/api/wishlist";
 
 type ProductPageProps = {
@@ -109,6 +111,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     collectionIds: product.collectionDetails.map((collection: { id: string }) => collection.id),
     limit: 3,
   });
+  const reviewFeed = await getProductReviewFeed(product.id, 6);
   const collectionLabel =
     product.collectionDetails
       .map((collection: { name: string }) => collection.name)
@@ -160,6 +163,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
       availability,
       itemCondition: "https://schema.org/NewCondition",
     },
+    ...(reviewFeed.summary.totalReviews > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: reviewFeed.summary.averageRating.toFixed(1),
+            reviewCount: reviewFeed.summary.totalReviews,
+          },
+        }
+      : {}),
   };
 
   const breadcrumbJsonLd = {
@@ -188,7 +200,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#fffaf0] text-textPrimary">
+    <main className="min-h-screen overflow-hidden bg-pageBg text-textPrimary">
       <section className="mx-auto w-full max-w-[1360px] px-4 py-6 font-body lg:px-6 lg:py-8">
         <Breadcrumb
           items={[
@@ -278,6 +290,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </div>
           </div>
         </section>
+
+        <ProductReviews
+          productId={product.id}
+          productPath={productPath}
+          initialReviews={reviewFeed.reviews}
+          initialSummary={reviewFeed.summary}
+        />
 
         <section className="pt-12">
           <Newsletter />

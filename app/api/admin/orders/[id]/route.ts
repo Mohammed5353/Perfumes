@@ -78,6 +78,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       columns: {
         id: true,
         status: true,
+        paymentMethod: true,
+        paymentStatus: true,
         customerEmail: true,
         customerName: true,
         customerPhone: true,
@@ -88,15 +90,20 @@ export async function PATCH(request: Request, context: RouteContext) {
       return null;
     }
 
+    const shouldMarkPaid =
+      status === "DELIVERED" && currentOrder.paymentStatus !== "SUCCESS";
+
     const [updatedOrder] = await tx
       .update(orders)
       .set({
         ...(status ? { status } : {}),
         ...(paymentStatus ? { paymentStatus } : {}),
+        ...(shouldMarkPaid ? { paymentStatus: "SUCCESS" as PaymentStatus } : {}),
         updatedAt: new Date(),
       })
       .where(eq(orders.id, id))
       .returning({ id: orders.id });
+
 
     if (status && status !== currentOrder.status) {
       await tx.insert(orderStatusHistory).values({
@@ -299,17 +306,27 @@ function serializeOrder(order: OrderSerializeSource) {
 function statusNote(status: OrderStatus) {
   switch (status) {
     case "PENDING":
-      return "Order marked as pending";
-    case "CONFIRMED":
-      return "Order confirmed";
+      return "Order received and is awaiting review";
+    case "ACCEPTED":
+      return "Order accepted and queued for fulfillment";
+    case "REJECTED":
+      return "Order rejected and will not be processed";
     case "SHIPPED":
       return "Order shipped";
+    case "PROCESSING":
+      return "Order is being processed";
+    case "OUT_FOR_DELIVERY":
+      return "Order is out for delivery";
     case "DELIVERED":
       return "Order delivered";
     case "CANCELLED":
       return "Order cancelled";
+    case "RETURN_REQUESTED":
+      return "Return requested for this order";
+    case "RETURNED":
+      return "Order returned successfully";
     case "REFUNDED":
-      return "Order refunded";
+      return "Refund processed for this order";
     default:
       return `Order status changed to ${status}`;
   }

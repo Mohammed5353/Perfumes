@@ -4,7 +4,7 @@ import { Skeleton } from "boneyard-js/react";
 
 export default function Loading() {
   return (
-    <main className="min-h-screen overflow-hidden bg-[#fffaf0] text-textPrimary">
+    <main className="min-h-screen overflow-hidden bg-pageBg text-textPrimary">
       <section className="mx-auto w-full max-w-[1360px] px-4 py-6 font-body lg:px-6 lg:py-8">
         <Skeleton
           name="product-page"

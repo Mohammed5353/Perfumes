@@ -1,13 +1,7 @@
-import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { currentUser } from "@clerk/nextjs/server";
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { userSessions } from "@/lib/db/schema";
-
-export const USER_SESSION_COOKIE = "scentora_user_session";
-
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+import { users } from "@/lib/db/schema";
 
 export type CustomerUser = {
   id: string;
@@ -16,133 +10,92 @@ export type CustomerUser = {
   role: "USER";
 };
 
-export type CustomerSession = {
-  id: string;
-  user: CustomerUser;
-  expiresAt: Date;
-};
+export async function requireCustomerUser(): Promise<CustomerUser | null> {
+  const clerkUser = await currentUser();
 
-export async function createUserSessionToken(user: CustomerUser) {
-  const token = randomBytes(32).toString("base64url");
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + SESSION_MAX_AGE_SECONDS * 1000);
-
-  await db.insert(userSessions).values({
-    userId: user.id,
-    tokenHash: hashSessionToken(token),
-    expiresAt,
-    lastSeenAt: now,
-  });
-
-  return token;
-}
-
-export async function getUserSession() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(USER_SESSION_COOKIE)?.value;
-
-  if (!token) {
+  if (!clerkUser) {
     return null;
   }
 
-  const session = await db.query.userSessions.findFirst({
-    where: and(
-      eq(userSessions.tokenHash, hashSessionToken(token)),
-      isNull(userSessions.revokedAt),
-      gt(userSessions.expiresAt, new Date()),
-    ),
-    with: {
-      user: {
-        columns: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-        },
-      },
+  const email =
+    clerkUser.primaryEmailAddress?.emailAddress?.trim().toLowerCase() ??
+    clerkUser.emailAddresses[0]?.emailAddress?.trim().toLowerCase();
+  if (!email) {
+    return null;
+  }
+
+  const lastLoginAt = clerkUser.lastSignInAt ?? new Date();
+  const nextLastLoginAt = new Date(lastLoginAt);
+  const name =
+    [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim() ||
+    clerkUser.fullName?.trim() ||
+    null;
+
+  const existingUser = await db.query.users.findFirst({
+    where: eq(users.email, email),
+    columns: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      lastLoginAt: true,
     },
   });
 
-  if (!session || session.user.role !== "USER") {
-    return null;
+  if (existingUser) {
+    if (existingUser.role !== "USER") {
+      return null;
+    }
+
+    const shouldUpdateName = name !== null && existingUser.name !== name;
+    const existingLastLoginAt = existingUser.lastLoginAt
+      ? new Date(existingUser.lastLoginAt).getTime()
+      : null;
+    const shouldUpdateLoginAt =
+      existingLastLoginAt !== nextLastLoginAt.getTime();
+
+    if (shouldUpdateName || shouldUpdateLoginAt) {
+      await db
+        .update(users)
+        .set({
+          ...(shouldUpdateName ? { name } : {}),
+          ...(shouldUpdateLoginAt ? { lastLoginAt: nextLastLoginAt } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, existingUser.id));
+    }
+
+    return {
+      id: existingUser.id,
+      email: existingUser.email,
+      name: shouldUpdateName ? name : existingUser.name,
+      role: "USER",
+    };
   }
 
-  await db
-    .update(userSessions)
-    .set({
-      lastSeenAt: new Date(),
-      updatedAt: new Date(),
+  const [createdUser] = await db
+    .insert(users)
+    .values({
+      name,
+      email,
+      role: "USER",
+      emailVerifiedAt: new Date(),
+      lastLoginAt: nextLastLoginAt,
     })
-    .where(eq(userSessions.id, session.id));
+    .returning({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+    });
+
+  if (!createdUser) {
+    return null;
+  }
 
   return {
-    id: session.id,
-    expiresAt: session.expiresAt,
-    user: {
-      id: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
-      role: "USER" as const,
-    },
-  } satisfies CustomerSession;
-}
-
-export async function requireCustomerUser(): Promise<CustomerUser | null> {
-  const session = await getUserSession();
-
-  if (!session) {
-    return null;
-  }
-
-  return session.user;
-}
-
-export function setUserSessionCookie(response: NextResponse, token: string) {
-  response.cookies.set(USER_SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: shouldUseSecureCookies(),
-    path: "/",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-  });
-}
-
-export function clearUserSessionCookie(response: NextResponse) {
-  response.cookies.set(USER_SESSION_COOKIE, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: shouldUseSecureCookies(),
-    path: "/",
-    maxAge: 0,
-  });
-}
-
-export async function revokeCurrentUserSession() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(USER_SESSION_COOKIE)?.value;
-
-  if (!token) {
-    return;
-  }
-
-  await db
-    .update(userSessions)
-    .set({
-      revokedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(userSessions.tokenHash, hashSessionToken(token)),
-        isNull(userSessions.revokedAt),
-      ),
-    );
-}
-
-function hashSessionToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-function shouldUseSecureCookies() {
-  return process.env.NEXT_PUBLIC_SITE_URL?.startsWith("https://") ?? false;
+    id: createdUser.id,
+    email: createdUser.email,
+    name: createdUser.name,
+    role: "USER",
+  };
 }
