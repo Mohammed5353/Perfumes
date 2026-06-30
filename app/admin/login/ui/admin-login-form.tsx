@@ -56,7 +56,7 @@ export default function AdminLoginForm() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f1ea] text-slate-950">
+    <main className="min-h-screen bg-pageBg text-slate-950">
       <div className="grid min-h-screen lg:grid-cols-[0.92fr_1.08fr]">
         <section className="relative hidden overflow-hidden bg-[#0f172a] lg:block">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(252,140,61,0.28),transparent_32%),linear-gradient(145deg,#0f172a_0%,#111827_45%,#1f2937_100%)]" />

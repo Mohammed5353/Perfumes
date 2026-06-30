@@ -147,7 +147,7 @@ export default function CartView() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#f6f1ea] text-textPrimary">
+    <main className="min-h-screen bg-pageBg text-textPrimary">
       <section className="mx-auto w-full max-w-[1300px] px-4 py-10 lg:px-6">
         <div className="mb-8 flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-lg bg-black text-white">
@@ -249,7 +249,7 @@ export default function CartView() {
                 <span className="font-semibold">${subtotal.toFixed(2)}</span>
               </div>
               <Link
-                href={guestMode ? "/login?redirect=/checkout" : "/checkout"}
+                href={guestMode ? "/sign-in?redirect_url=/checkout" : "/checkout"}
                 className="mt-5 flex min-h-11 w-full items-center justify-center rounded-lg bg-black px-4 text-sm font-semibold text-white hover:bg-black/85"
               >
                 Proceed to checkout

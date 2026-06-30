@@ -52,11 +52,20 @@ function normalizePhoneNumber(value: string) {
 }
 
 function bodyForStatus(status: string, fallback: string) {
-  if (status === "DELIVERED") {
-    return `${fallback} Your order has been delivered. Thank you for shopping with Scentora.`;
+  switch (status) {
+    case "OUT_FOR_DELIVERY":
+      return `${fallback} Your order is out for delivery and should arrive soon.`;
+    case "DELIVERED":
+      return `${fallback} Your order has been delivered. Thank you for shopping with Scentora.`;
+    case "RETURN_REQUESTED":
+      return `${fallback} Your return request has been received.`;
+    case "RETURNED":
+      return `${fallback} Your return has been completed.`;
+    case "REFUNDED":
+      return `${fallback} Your refund has been processed.`;
+    default:
+      return fallback;
   }
-
-  return fallback;
 }
 
 function shortOrderId(orderId: string) {

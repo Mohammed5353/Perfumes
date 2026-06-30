@@ -4,19 +4,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Heart, LogIn, LogOut, Menu, ShoppingBag, UserPlus, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import {
-  Show,
-  SignInButton,
-  SignOutButton,
-  SignUpButton,
-  UserButton,
-  useUser,
-} from "@clerk/nextjs";
+import { Show, useUser } from "@clerk/nextjs";
 import { getGuestCartQuantity } from "@/lib/guest-cart";
 import { getGuestWishlistQuantity } from "@/lib/guest-wishlist";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [cartQuantity, setCartQuantity] = useState(0);
   const [wishlistQuantity, setWishlistQuantity] = useState(0);
   const { user } = useUser();
@@ -94,6 +88,7 @@ export default function Navbar() {
   }, []);
 
   const accountLabel = user?.fullName || user?.primaryEmailAddress?.emailAddress || "Account";
+  const accountImage = user?.imageUrl;
 
   return (
     <header className="w-full">
@@ -169,58 +164,86 @@ export default function Navbar() {
             ) : null}
           </Link>
 
-          <div className="group relative">
-            <Show when="signed-out">
-              <SignInButton>
-                <button
-                  type="button"
-                  aria-label="Sign in"
-                  className="grid h-9 w-9 place-items-center rounded-full border border-black/50 hover:bg-black/5"
-                >
-                  <UserRound className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </SignInButton>
-            </Show>
-            <Show when="signed-in">
-              <div className="grid h-9 w-9 place-items-center rounded-full border border-black/50 hover:bg-black/5">
-                <UserButton />
-              </div>
-            </Show>
-            <div className="pointer-events-none absolute right-0 top-11 z-20 min-w-[180px] rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-medium text-[#1A1A1A] opacity-0 shadow-sm transition group-hover:opacity-100">
-              <span className="block truncate">{accountLabel}</span>
-            </div>
-          </div>
-
           <Show when="signed-out">
-            <SignInButton>
-              <button
-                type="button"
-                className="hidden min-h-9 items-center justify-center gap-2 rounded-full border border-black/50 px-4 text-sm font-semibold text-[#1A1A1A] transition hover:bg-black/5 sm:inline-flex"
-              >
-                <LogIn className="h-4 w-4" aria-hidden="true" />
-                Sign in
-              </button>
-            </SignInButton>
-            <SignUpButton>
-              <button
-                type="button"
-                className="hidden min-h-9 items-center justify-center gap-2 rounded-full bg-[#1A1A1A] px-4 text-sm font-semibold text-white transition hover:bg-black/85 sm:inline-flex"
-              >
-                <UserPlus className="h-4 w-4" aria-hidden="true" />
-                Sign up
-              </button>
-            </SignUpButton>
+            <Link
+              href="/sign-in"
+              aria-label="Sign in"
+              className="grid h-9 w-9 place-items-center rounded-full border border-black/50 hover:bg-black/5"
+            >
+              <UserRound className="h-4 w-4" aria-hidden="true" />
+            </Link>
           </Show>
           <Show when="signed-in">
-            <SignOutButton>
+            <div className="relative">
               <button
                 type="button"
-                className="hidden min-h-9 items-center justify-center gap-2 rounded-full border border-black/50 px-4 text-sm font-semibold text-[#1A1A1A] transition hover:bg-black/5 sm:inline-flex"
+                aria-label="Open account menu"
+                onClick={() => setAccountMenuOpen((open) => !open)}
+                className="grid h-9 w-9 place-items-center overflow-hidden rounded-full border border-black/50 hover:bg-black/5"
               >
-                <LogOut className="h-4 w-4" aria-hidden="true" />
-                Sign out
+                {accountImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={accountImage}
+                    alt={accountLabel}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <UserRound className="h-4 w-4" aria-hidden="true" />
+                )}
               </button>
-            </SignOutButton>
+              <AnimatePresence>
+                {accountMenuOpen ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-11 z-30 w-[240px] overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg"
+                  >
+                    <div className="border-b border-black/10 px-4 py-3">
+                      <p className="truncate text-sm font-semibold">{accountLabel}</p>
+                      <p className="truncate text-xs text-textSecondary">
+                        {user?.primaryEmailAddress?.emailAddress}
+                      </p>
+                    </div>
+                    <Link
+                      href="/account"
+                      className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-black/5"
+                      onClick={() => setAccountMenuOpen(false)}
+                    >
+                      Manage Orders
+                    </Link>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+            </div>
+          </Show>
+
+          <Show when="signed-out">
+            <Link
+              href="/sign-in"
+              className="hidden min-h-9 items-center justify-center gap-2 rounded-full border border-black/50 px-4 text-sm font-semibold text-[#1A1A1A] transition hover:bg-black/5 sm:inline-flex"
+            >
+              <LogIn className="h-4 w-4" aria-hidden="true" />
+              Sign in
+            </Link>
+            <Link
+              href="/sign-up"
+              className="hidden min-h-9 items-center justify-center gap-2 rounded-full bg-[#1A1A1A] px-4 text-sm font-semibold text-white transition hover:bg-black/85 sm:inline-flex"
+            >
+              <UserPlus className="h-4 w-4" aria-hidden="true" />
+              Sign up
+            </Link>
+          </Show>
+          <Show when="signed-in">
+            <Link
+              href="/logout"
+              className="hidden min-h-9 items-center justify-center gap-2 rounded-full border border-black/50 px-4 text-sm font-semibold text-[#1A1A1A] transition hover:bg-black/5 sm:inline-flex"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Sign out
+            </Link>
           </Show>
         </div>
       </div>
@@ -244,7 +267,7 @@ export default function Navbar() {
                 ["About", "/about"],
                 ["Cart", "/cart"],
                 ["Wishlist", "/wishlist"],
-                ...(user ? [["Account", "/account"]] : []),
+                ...(user ? [["Orders", "/account"]] : []),
               ].map(([label, href]) => (
                 <Link
                   key={href}
@@ -256,38 +279,39 @@ export default function Navbar() {
                 </Link>
               ))}
               <Show when="signed-out">
-                <SignInButton>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-black/5"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    <LogIn className="h-4 w-4" aria-hidden="true" />
-                    Sign in
-                  </button>
-                </SignInButton>
-                <SignUpButton>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-black/5"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    <UserPlus className="h-4 w-4" aria-hidden="true" />
-                    Sign up
-                  </button>
-                </SignUpButton>
+                <Link
+                  href="/sign-in"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-black/5"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <LogIn className="h-4 w-4" aria-hidden="true" />
+                  Sign in
+                </Link>
+                <Link
+                  href="/sign-up"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-black/5"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <UserPlus className="h-4 w-4" aria-hidden="true" />
+                  Sign up
+                </Link>
               </Show>
               <Show when="signed-in">
-                <SignOutButton>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-black/5"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    <LogOut className="h-4 w-4" aria-hidden="true" />
-                    Sign out
-                  </button>
-                </SignOutButton>
+                <Link
+                  href="/account"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-black/5"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Manage Orders
+                </Link>
+                <Link
+                  href="/logout"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-black/5"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  Sign out
+                </Link>
               </Show>
             </nav>
           </motion.div>

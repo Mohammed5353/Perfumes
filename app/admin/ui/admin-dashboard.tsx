@@ -10,6 +10,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -30,13 +31,21 @@ import {
   Search,
   Settings,
   ShoppingBag,
+  Star,
   Trophy,
   Upload,
   Users,
+  Trash2,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { uploadImageToCloudinary } from "@/lib/api/uploads";
+import {
+  formatOrderStatus,
+  getOrderStatusTone,
+  isActiveOrderStatus,
+  orderStatusValues,
+} from "@/lib/order-status";
 
 type AdminUser = {
   id: string;
@@ -157,6 +166,28 @@ type NewsletterSubscriber = {
   createdAt: string;
 };
 
+type Review = {
+  id: string;
+  rating: number;
+  title: string | null;
+  comment: string;
+  verifiedPurchase: boolean;
+  isApproved: boolean;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+  product: {
+    id: string;
+    name: string;
+    slug: string;
+    image: string;
+  };
+};
+
 type SiteSettings = {
   promoBannerText: string;
   facebookUrl: string;
@@ -262,6 +293,7 @@ type NavId =
   | "collections"
   | "orders"
   | "carts"
+  | "reviews"
   | "messages"
   | "newsletter"
   | "users"
@@ -279,21 +311,11 @@ const navItems: Array<{ id: NavId; label: string; icon: LucideIcon }> = [
   { id: "orders", label: "Orders", icon: ClipboardList },
   { id: "carts", label: "Carts", icon: ShoppingBag },
   { id: "best-sellers", label: "Best Sellers", icon: Trophy },
+  { id: "reviews", label: "Reviews", icon: Star },
   { id: "messages", label: "Messages", icon: MessageSquareText },
   { id: "newsletter", label: "Newsletter", icon: Mail },
   { id: "settings", label: "Settings", icon: Settings },
 ];
-
-const orderStatuses = [
-  "PENDING",
-  "CONFIRMED",
-  "PAID",
-  "PROCESSING",
-  "SHIPPED",
-  "DELIVERED",
-  "CANCELLED",
-  "REFUNDED",
-] as const;
 
 const paymentStatuses = ["PENDING", "SUCCESS", "FAILED", "REFUNDED"] as const;
 const productTags = ["", "HOT", "NEW", "POPULAR", "LUXURY"] as const;
@@ -355,6 +377,7 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
   const [newsletterSubscribers, setNewsletterSubscribers] = useState<
     NewsletterSubscriber[]
   >([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [siteSettings, setSiteSettings] =
     useState<SiteSettings>(defaultSiteSettings);
   const [bestSellerSettings, setBestSellerSettings] =
@@ -370,6 +393,7 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingBestSellers, setSavingBestSellers] = useState(false);
   const [evaluatingBestSellers, setEvaluatingBestSellers] = useState(false);
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [importingProducts, setImportingProducts] = useState(false);
 
@@ -403,12 +427,17 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
     const activeProducts = products.filter((product) => product.isActive).length;
     const lowStockProducts = products.filter((product) => product.stock <= 5).length;
     const pendingOrders = orders.filter((order) =>
-      ["PENDING", "CONFIRMED", "PAID", "PROCESSING"].includes(order.status),
+      isActiveOrderStatus(order.status),
     ).length;
     const orderValue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
     const openCarts = carts.length;
     const messages = contactInquiries.length;
     const subscribers = newsletterSubscribers.length;
+    const reviewsCount = reviews.length;
+    const averageReviewRating =
+      reviewsCount > 0
+        ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviewsCount
+        : 0;
     const usersCount = usersList.length;
 
     return {
@@ -421,8 +450,10 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
       openCarts,
       messages,
       subscribers,
+      reviewsCount,
+      averageReviewRating,
     };
-  }, [carts, contactInquiries, newsletterSubscribers, orders, products, usersList]);
+  }, [carts, contactInquiries, newsletterSubscribers, orders, products, reviews, usersList]);
 
   const visibleProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase();
@@ -568,6 +599,19 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
     }
   }, [readAdminJson]);
 
+  const loadReviews = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/reviews");
+      const json = await readAdminJson<{ data: Review[] }>(
+        response,
+        "Failed to load reviews",
+      );
+      setReviews(json.data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Failed to load reviews");
+    }
+  }, [readAdminJson]);
+
   const loadUsers = useCallback(async () => {
     try {
       const response = await fetch("/api/admin/users");
@@ -647,6 +691,10 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
   useEffect(() => {
     void Promise.resolve().then(loadNewsletterSubscribers);
   }, [loadNewsletterSubscribers]);
+
+  useEffect(() => {
+    void Promise.resolve().then(loadReviews);
+  }, [loadReviews]);
 
   useEffect(() => {
     void Promise.resolve().then(loadUsers);
@@ -910,6 +958,35 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
     }
   }
 
+  async function onDeleteReview(reviewId: string) {
+    setDeletingReviewId(reviewId);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/admin/reviews", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewId }),
+      });
+      const body = await readAdminJson<{ message: string }>(
+        response,
+        "Failed to delete review",
+      );
+
+      if (!body.message) {
+        throw new Error("Failed to delete review");
+      }
+
+      await loadReviews();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error ? deleteError.message : "Failed to delete review",
+      );
+    } finally {
+      setDeletingReviewId(null);
+    }
+  }
+
   async function onLogout() {
     await fetch("/api/admin/auth/logout", { method: "POST" });
     router.replace("/admin/login");
@@ -1021,6 +1098,17 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
           onChange={setBestSellerSettings}
           onSave={onSaveBestSellers}
           onEvaluate={onEvaluateBestSellers}
+        />
+      );
+    }
+
+    if (activeView === "reviews") {
+      return (
+        <ReviewsView
+          reviews={reviews}
+          deletingReviewId={deletingReviewId}
+          onDeleteReview={onDeleteReview}
+          onReload={loadReviews}
         />
       );
     }
@@ -1266,13 +1354,15 @@ function OverviewView({
     orderValue: number;
     openCarts: number;
     subscribers: number;
+    reviewsCount: number;
+    averageReviewRating: number;
   };
   onChangeView: (id: NavId) => void;
 }) {
   const lowStockProducts = products.filter((product) => product.stock <= 5).slice(0, 6);
   const recentOrders = orders.slice(0, 6);
   const recentUsers = users.slice(0, 6);
-  const orderStatusCounts = orderStatuses.map((status) => ({
+  const orderStatusCounts = orderStatusValues.map((status) => ({
     status,
     count: orders.filter((order) => order.status === status).length,
   }));
@@ -1316,7 +1406,7 @@ function OverviewView({
                 carts from one control surface.
               </p>
 
-              <div className="mt-7 grid gap-3 sm:grid-cols-3">
+              <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <HeroMetric
                   label="Order value"
                   value={formatInr(stats.orderValue)}
@@ -1331,6 +1421,11 @@ function OverviewView({
                   label="Cart signal"
                   value={`${cartConversionSignal}%`}
                   icon={ShoppingBag}
+                />
+                <HeroMetric
+                  label="Average rating"
+                  value={`${stats.averageReviewRating.toFixed(1)}★`}
+                  icon={Star}
                 />
               </div>
             </div>
@@ -1437,6 +1532,11 @@ function OverviewView({
                 label: "Registered users",
                 value: stats.usersCount,
                 tone: "bg-emerald-50 text-emerald-700",
+              },
+              {
+                label: "Reviews",
+                value: `${stats.reviewsCount}`,
+                tone: "bg-amber-50 text-amber-700",
               },
               {
                 label: "Low stock alerts",
@@ -1601,7 +1701,10 @@ function OverviewView({
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold">{formatInr(order.totalAmount)}</p>
-                    <StatusPill label={order.status} tone={toneForStatus(order.status)} />
+                    <StatusPill
+                      label={formatOrderStatus(order.status)}
+                      tone={getOrderStatusTone(order.status)}
+                    />
                   </div>
                 </div>
               ))}
@@ -2467,9 +2570,9 @@ function OrdersView({
             }
           >
             <option value="">All order statuses</option>
-            {orderStatuses.map((status) => (
+            {orderStatusValues.map((status) => (
               <option key={status} value={status}>
-                {status}
+                {formatOrderStatus(status)}
               </option>
             ))}
           </SelectField>
@@ -2517,17 +2620,17 @@ function OrdersView({
                         order.statusHistory.map((entry) => (
                           <span
                             key={entry.id}
-                            title={`${entry.note || entry.status} - ${formatDate(
+                            title={`${entry.note || formatOrderStatus(entry.status)} - ${formatDate(
                               entry.createdAt,
                             )}`}
                             className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600"
                           >
-                            {entry.status}
+                            {formatOrderStatus(entry.status)}
                           </span>
                         ))
                       ) : (
                         <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
-                          {order.status}
+                          {formatOrderStatus(order.status)}
                         </span>
                       )}
                     </div>
@@ -2567,9 +2670,9 @@ function OrdersView({
                         onUpdateOrder(order.id, { status: event.target.value })
                       }
                     >
-                      {orderStatuses.map((status) => (
+                      {orderStatusValues.map((status) => (
                         <option key={status} value={status}>
-                          {status}
+                          {formatOrderStatus(status)}
                         </option>
                       ))}
                     </select>
@@ -2958,6 +3061,149 @@ function NewsletterSubscribersView({
         </div>
       ) : (
         <EmptyState title="No newsletter subscribers found" />
+      )}
+    </section>
+  );
+}
+
+function ReviewsView({
+  reviews,
+  deletingReviewId,
+  onDeleteReview,
+  onReload,
+}: {
+  reviews: Review[];
+  deletingReviewId: string | null;
+  onDeleteReview: (reviewId: string) => Promise<void>;
+  onReload: () => Promise<void>;
+}) {
+  const averageRating =
+    reviews.length > 0
+      ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+      : 0;
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white">
+      <div className="flex flex-col gap-4 border-b border-slate-200 p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Customer feedback
+          </p>
+          <h2 className="font-heading text-3xl font-semibold">Product reviews</h2>
+        </div>
+        <button
+          type="button"
+          onClick={() => void onReload()}
+          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Refresh reviews
+        </button>
+      </div>
+
+      <div className="grid gap-4 border-b border-slate-200 p-5 md:grid-cols-3">
+        <StatCard label="Total reviews" value={`${reviews.length}`} />
+        <StatCard label="Average rating" value={averageRating.toFixed(1)} />
+        <StatCard
+          label="Verified purchases"
+          value={`${reviews.filter((review) => review.verifiedPurchase).length}`}
+        />
+      </div>
+
+      {reviews.length > 0 ? (
+        <div className="max-h-[calc(100vh-220px)] overflow-auto">
+          <table className="w-full min-w-[1100px] text-left text-sm">
+            <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-5 py-3 font-semibold">Product</th>
+                <th className="px-5 py-3 font-semibold">Customer</th>
+                <th className="px-5 py-3 font-semibold">Rating</th>
+                <th className="px-5 py-3 font-semibold">Review</th>
+                <th className="px-5 py-3 font-semibold">Purchase</th>
+                <th className="px-5 py-3 font-semibold">Date</th>
+                <th className="px-5 py-3 font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {reviews.map((review) => (
+                <tr key={review.id} className="align-top hover:bg-slate-50/80">
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- Review product images can be local paths or runtime Cloudinary URLs. */}
+                      <img
+                        src={review.product.image}
+                        alt=""
+                        className="h-11 w-11 rounded-lg border border-slate-200 object-cover"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{review.product.name}</p>
+                        <p className="truncate text-xs text-slate-500">{review.product.slug}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3">
+                    <p className="font-semibold">{review.user.name || "Unnamed customer"}</p>
+                    <a
+                      href={`mailto:${review.user.email}`}
+                      className="text-xs font-medium text-slate-500 hover:opacity-70"
+                    >
+                      {review.user.email}
+                    </a>
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-1 text-amber-500">
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <Star
+                          key={index}
+                          className={`h-4 w-4 ${index < review.rating ? "fill-current" : "text-slate-200"}`}
+                          aria-hidden="true"
+                        />
+                      ))}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{review.rating}/5</p>
+                  </td>
+                  <td className="px-5 py-3">
+                    {review.title ? (
+                      <p className="font-semibold text-slate-900">{review.title}</p>
+                    ) : null}
+                    <p className="mt-1 max-h-24 overflow-hidden whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                      {review.comment}
+                    </p>
+                  </td>
+                  <td className="px-5 py-3">
+                    <StatusPill
+                      label={review.verifiedPurchase ? "VERIFIED" : "UNVERIFIED"}
+                      tone={review.verifiedPurchase ? "green" : "warning"}
+                    />
+                  </td>
+                  <td className="px-5 py-3 text-slate-600">
+                    {formatDateTime(review.createdAt)}
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex flex-col gap-2">
+                      <Link
+                        href={`/products/${review.product.slug}`}
+                        className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        View product
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={deletingReviewId === review.id}
+                        onClick={() => void onDeleteReview(review.id)}
+                        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg border border-rose-200 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        {deletingReviewId === review.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState title="No reviews found" />
       )}
     </section>
   );
@@ -3628,28 +3874,23 @@ function EmptyState({ title }: { title: string }) {
   );
 }
 
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
 function LoadingPanel() {
   return (
     <section className="grid min-h-64 place-items-center rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
       Loading admin dashboard...
     </section>
   );
-}
-
-function toneForStatus(status: string): "blue" | "danger" | "green" | "neutral" | "warning" {
-  if (["DELIVERED", "SHIPPED", "SUCCESS"].includes(status)) {
-    return "green";
-  }
-
-  if (["CANCELLED", "REFUNDED", "FAILED"].includes(status)) {
-    return "danger";
-  }
-
-  if (["CONFIRMED", "PAID", "PROCESSING"].includes(status)) {
-    return "blue";
-  }
-
-  return status === "PENDING" ? "warning" : "neutral";
 }
 
 function formatInr(value: number) {

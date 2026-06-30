@@ -7,7 +7,7 @@ const swaggerUrl = "/api/openapi";
 
 export default function SwaggerDocs() {
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-pageBg">
       <SwaggerUI url={swaggerUrl} />
     </main>
   );
