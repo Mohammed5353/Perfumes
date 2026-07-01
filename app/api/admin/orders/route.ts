@@ -143,6 +143,14 @@ type OrderSerializeSource = {
   totalAmount: string | number;
   status: string;
   paymentStatus: string;
+  courierName: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  codAmountDue: string | number | null;
+  codCollectedAt: Date | null;
+  dispatchedAt: Date | null;
+  outForDeliveryAt: Date | null;
+  deliveredAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   items: Array<Record<string, unknown>>;
@@ -166,6 +174,14 @@ function serializeOrder(order: OrderSerializeSource) {
     totalAmount: Number(order.totalAmount),
     status: order.status,
     paymentStatus: order.paymentStatus,
+    courierName: order.courierName,
+    trackingNumber: order.trackingNumber,
+    trackingUrl: order.trackingUrl,
+    codAmountDue: order.codAmountDue === null ? null : Number(order.codAmountDue),
+    codCollectedAt: order.codCollectedAt?.toISOString() ?? null,
+    dispatchedAt: order.dispatchedAt?.toISOString() ?? null,
+    outForDeliveryAt: order.outForDeliveryAt?.toISOString() ?? null,
+    deliveredAt: order.deliveredAt?.toISOString() ?? null,
     items: order.items.map((item) => ({
       id: String(item.id ?? ""),
       productId: typeof item.productId === "string" ? item.productId : null,

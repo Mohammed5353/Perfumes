@@ -116,6 +116,14 @@ type Order = {
   status: string;
   paymentStatus: string;
   paymentMethod: string;
+  courierName: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  codAmountDue: number | null;
+  codCollectedAt: string | null;
+  dispatchedAt: string | null;
+  outForDeliveryAt: string | null;
+  deliveredAt: string | null;
   createdAt: string;
   statusHistory: Array<{
     id: string;
@@ -2521,7 +2529,14 @@ function OrdersView({
   >;
   onUpdateOrder: (
     orderId: string,
-    payload: { status?: string; paymentStatus?: string },
+    payload: {
+      status?: string;
+      paymentStatus?: string;
+      courierName?: string | null;
+      trackingNumber?: string | null;
+      trackingUrl?: string | null;
+      codCollected?: boolean;
+    },
   ) => void;
   onError: Dispatch<SetStateAction<string | null>>;
 }) {
@@ -2604,6 +2619,7 @@ function OrdersView({
                 <th className="px-5 py-3 font-semibold">Items</th>
                 <th className="px-5 py-3 font-semibold">Total</th>
                 <th className="px-5 py-3 font-semibold">Payment</th>
+                <th className="px-5 py-3 font-semibold">Courier</th>
                 <th className="px-5 py-3 font-semibold">Order Status</th>
                 <th className="px-5 py-3 font-semibold">Payment Status</th>
                 <th className="px-5 py-3 font-semibold">Date</th>
@@ -2662,6 +2678,40 @@ function OrdersView({
                     {formatPaymentMethod(order.paymentMethod)}
                   </td>
                   <td className="px-5 py-3">
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={order.courierName ?? ""}
+                        placeholder="Courier partner"
+                        disabled={updatingOrderId === order.id}
+                        onChange={(event) =>
+                          onUpdateOrder(order.id, { courierName: event.target.value || null })
+                        }
+                        className="min-h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+                      />
+                      <input
+                        type="text"
+                        value={order.trackingNumber ?? ""}
+                        placeholder="Tracking number"
+                        disabled={updatingOrderId === order.id}
+                        onChange={(event) =>
+                          onUpdateOrder(order.id, { trackingNumber: event.target.value || null })
+                        }
+                        className="min-h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+                      />
+                      <input
+                        type="text"
+                        value={order.trackingUrl ?? ""}
+                        placeholder="Tracking URL"
+                        disabled={updatingOrderId === order.id}
+                        onChange={(event) =>
+                          onUpdateOrder(order.id, { trackingUrl: event.target.value || null })
+                        }
+                        className="min-h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+                      />
+                    </div>
+                  </td>
+                  <td className="px-5 py-3">
                     <select
                       className="min-h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
                       value={order.status}
@@ -2678,22 +2728,32 @@ function OrdersView({
                     </select>
                   </td>
                   <td className="px-5 py-3">
-                    <select
-                      className="min-h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
-                      value={order.paymentStatus}
-                      disabled={updatingOrderId === order.id}
-                      onChange={(event) =>
-                        onUpdateOrder(order.id, {
-                          paymentStatus: event.target.value,
-                        })
-                      }
-                    >
-                      {paymentStatuses.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="space-y-2">
+                      <select
+                        className="min-h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+                        value={order.paymentStatus}
+                        disabled={updatingOrderId === order.id}
+                        onChange={(event) =>
+                          onUpdateOrder(order.id, {
+                            paymentStatus: event.target.value,
+                          })
+                        }
+                      >
+                        {paymentStatuses.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={updatingOrderId === order.id || order.codCollectedAt !== null}
+                        onClick={() => onUpdateOrder(order.id, { codCollected: true })}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        {order.codCollectedAt ? "COD collected" : "Mark COD collected"}
+                      </button>
+                    </div>
                   </td>
                   <td className="px-5 py-3 text-slate-600">
                     {formatDate(order.createdAt)}

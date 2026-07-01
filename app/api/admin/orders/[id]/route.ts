@@ -10,6 +10,7 @@ import {
   type OrderStatus,
   type PaymentStatus,
 } from "@/lib/db/schema";
+import { statusNote } from "@/lib/delivery-tracking";
 import { sendOrderStatusEmail } from "@/lib/email";
 import { sendOrderStatusSms } from "@/lib/sms";
 
@@ -22,6 +23,10 @@ type RouteContext = {
 type UpdateOrderBody = {
   status?: unknown;
   paymentStatus?: unknown;
+  courierName?: unknown;
+  trackingNumber?: unknown;
+  trackingUrl?: unknown;
+  codCollected?: unknown;
 };
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -59,6 +64,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const status = parseOrderStatus(body.status);
   const paymentStatus = parsePaymentStatus(body.paymentStatus);
+  const courierName = readOptionalString(body.courierName);
+  const trackingNumber = readOptionalString(body.trackingNumber);
+  const trackingUrl = readOptionalString(body.trackingUrl);
+  const codCollected = body.codCollected === true;
 
   if (body.status !== undefined && !status) {
     return badRequest("Invalid order status");
@@ -68,8 +77,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     return badRequest("Invalid payment status");
   }
 
-  if (!status && !paymentStatus) {
-    return badRequest("At least one of status or paymentStatus is required");
+  if (
+    !status &&
+    !paymentStatus &&
+    courierName === undefined &&
+    trackingNumber === undefined &&
+    trackingUrl === undefined &&
+    body.codCollected !== true
+  ) {
+    return badRequest("At least one order field must be provided");
   }
 
   const updated = await db.transaction(async (tx) => {
@@ -92,13 +108,23 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const shouldMarkPaid =
       status === "DELIVERED" && currentOrder.paymentStatus !== "SUCCESS";
+    const nextPaymentStatus =
+      paymentStatus ??
+      (shouldMarkPaid || codCollected ? ("SUCCESS" as PaymentStatus) : undefined);
+    const nextStatus = status ?? currentOrder.status;
 
     const [updatedOrder] = await tx
       .update(orders)
       .set({
         ...(status ? { status } : {}),
-        ...(paymentStatus ? { paymentStatus } : {}),
-        ...(shouldMarkPaid ? { paymentStatus: "SUCCESS" as PaymentStatus } : {}),
+        ...(nextPaymentStatus ? { paymentStatus: nextPaymentStatus } : {}),
+        ...(courierName !== undefined ? { courierName } : {}),
+        ...(trackingNumber !== undefined ? { trackingNumber } : {}),
+        ...(trackingUrl !== undefined ? { trackingUrl } : {}),
+        ...(nextStatus === "SHIPPED" ? { dispatchedAt: new Date() } : {}),
+        ...(nextStatus === "OUT_FOR_DELIVERY" ? { outForDeliveryAt: new Date() } : {}),
+        ...(nextStatus === "DELIVERED" ? { deliveredAt: new Date() } : {}),
+        ...(shouldMarkPaid || codCollected ? { codCollectedAt: new Date() } : {}),
         updatedAt: new Date(),
       })
       .where(eq(orders.id, id))
@@ -122,6 +148,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       customerName: currentOrder.customerName,
       customerPhone: currentOrder.customerPhone,
       newStatus: status,
+      courierName,
+      trackingNumber,
+      trackingUrl,
     };
   });
 
@@ -255,6 +284,14 @@ type OrderSerializeSource = {
   totalAmount: string | number;
   status: string;
   paymentStatus: string;
+  courierName: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  codAmountDue: string | number | null;
+  codCollectedAt: Date | null;
+  dispatchedAt: Date | null;
+  outForDeliveryAt: Date | null;
+  deliveredAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   items: Array<Record<string, unknown>>;
@@ -278,6 +315,14 @@ function serializeOrder(order: OrderSerializeSource) {
     totalAmount: Number(order.totalAmount),
     status: order.status,
     paymentStatus: order.paymentStatus,
+    courierName: order.courierName,
+    trackingNumber: order.trackingNumber,
+    trackingUrl: order.trackingUrl,
+    codAmountDue: order.codAmountDue === null ? null : Number(order.codAmountDue),
+    codCollectedAt: order.codCollectedAt?.toISOString() ?? null,
+    dispatchedAt: order.dispatchedAt?.toISOString() ?? null,
+    outForDeliveryAt: order.outForDeliveryAt?.toISOString() ?? null,
+    deliveredAt: order.deliveredAt?.toISOString() ?? null,
     items: order.items.map((item) => ({
       id: String(item.id ?? ""),
       productId: typeof item.productId === "string" ? item.productId : null,
@@ -303,31 +348,15 @@ function serializeOrder(order: OrderSerializeSource) {
   };
 }
 
-function statusNote(status: OrderStatus) {
-  switch (status) {
-    case "PENDING":
-      return "Order received and is awaiting review";
-    case "ACCEPTED":
-      return "Order accepted and queued for fulfillment";
-    case "REJECTED":
-      return "Order rejected and will not be processed";
-    case "SHIPPED":
-      return "Order shipped";
-    case "PROCESSING":
-      return "Order is being processed";
-    case "OUT_FOR_DELIVERY":
-      return "Order is out for delivery";
-    case "DELIVERED":
-      return "Order delivered";
-    case "CANCELLED":
-      return "Order cancelled";
-    case "RETURN_REQUESTED":
-      return "Return requested for this order";
-    case "RETURNED":
-      return "Order returned successfully";
-    case "REFUNDED":
-      return "Refund processed for this order";
-    default:
-      return `Order status changed to ${status}`;
+function readOptionalString(value: unknown) {
+  if (value === null) {
+    return null;
   }
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }

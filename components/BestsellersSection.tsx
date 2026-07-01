@@ -2,10 +2,13 @@ import CommonLink from "./common/CommonLink";
 import ProductCard from "./ProductCardLarge";
 import ProductCarousel from "./ProductCarousel";
 import SectionHeading from "./SectionHeading";
+import { ensureMonthlyBestSellerEvaluation } from "@/lib/api/best-sellers";
 import { getProducts } from "@/lib/api/catalog";
 import { getWishlistProductIdSet } from "@/lib/api/wishlist";
 
 export default async function BestSellersSection() {
+    await ensureMonthlyBestSellerEvaluation();
+
     const [result, wishlistProductIds] = await Promise.all([
         getProducts({ bestSeller: "true", limit: "6" }),
         getWishlistProductIdSet(),

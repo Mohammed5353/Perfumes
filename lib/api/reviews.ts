@@ -1,6 +1,6 @@
 import { and, count, desc, eq, sql } from "drizzle-orm";
 import { findProductByIdOrSlug } from "@/lib/api/catalog";
-import { db } from "@/lib/db";
+import { db, sqlClient } from "@/lib/db";
 import { orderItems, orders, productReviews } from "@/lib/db/schema";
 import type {
   AdminReviewItem,
@@ -24,6 +24,8 @@ type AdminReviewWithRelations = ProductReviewWithUser & {
     image: string;
   };
 };
+
+let productReviewsTableReadyPromise: Promise<void> | null = null;
 
 export async function getProductReviewFeed(productId: string, limit = 10) {
   try {
@@ -154,28 +156,16 @@ export async function createOrUpdateReview(input: {
   comment: string;
   verifiedPurchase: boolean;
 }) {
-  await db
-    .insert(productReviews)
-    .values({
-      productId: input.productId,
-      userId: input.userId,
-      rating: input.rating,
-      title: input.title,
-      comment: input.comment,
-      verifiedPurchase: input.verifiedPurchase,
-      isApproved: true,
-    })
-    .onConflictDoUpdate({
-      target: [productReviews.productId, productReviews.userId],
-      set: {
-        rating: input.rating,
-        title: input.title,
-        comment: input.comment,
-        verifiedPurchase: input.verifiedPurchase,
-        isApproved: true,
-        updatedAt: new Date(),
-      },
-    });
+  try {
+    await saveReview(input);
+  } catch (error) {
+    if (!isMissingProductReviewsTableError(error)) {
+      throw error;
+    }
+
+    await ensureProductReviewsTable();
+    await saveReview(input);
+  }
 
   return getLatestProductReview(input.productId, input.userId);
 }
@@ -265,6 +255,84 @@ function emptyReviewFeed(): {
     },
     reviews: [],
   };
+}
+
+async function saveReview(input: {
+  productId: string;
+  userId: string;
+  rating: number;
+  title: string | null;
+  comment: string;
+  verifiedPurchase: boolean;
+}) {
+  await db
+    .insert(productReviews)
+    .values({
+      productId: input.productId,
+      userId: input.userId,
+      rating: input.rating,
+      title: input.title,
+      comment: input.comment,
+      verifiedPurchase: input.verifiedPurchase,
+      isApproved: true,
+    })
+    .onConflictDoUpdate({
+      target: [productReviews.productId, productReviews.userId],
+      set: {
+        rating: input.rating,
+        title: input.title,
+        comment: input.comment,
+        verifiedPurchase: input.verifiedPurchase,
+        isApproved: true,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+async function ensureProductReviewsTable() {
+  if (!productReviewsTableReadyPromise) {
+    productReviewsTableReadyPromise = (async () => {
+      await sqlClient.unsafe(`
+        CREATE TABLE IF NOT EXISTS "product_reviews" (
+          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+          "product_id" uuid NOT NULL REFERENCES "products"("id") ON DELETE cascade,
+          "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+          "rating" integer NOT NULL,
+          "title" text,
+          "comment" text NOT NULL,
+          "verified_purchase" boolean DEFAULT false NOT NULL,
+          "is_approved" boolean DEFAULT true NOT NULL,
+          "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+          "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+        );
+      `);
+      await sqlClient.unsafe(`
+        CREATE UNIQUE INDEX IF NOT EXISTS "product_reviews_product_user_unique"
+        ON "product_reviews" USING btree ("product_id","user_id");
+      `);
+      await sqlClient.unsafe(`
+        CREATE INDEX IF NOT EXISTS "product_reviews_product_id_idx"
+        ON "product_reviews" USING btree ("product_id");
+      `);
+      await sqlClient.unsafe(`
+        CREATE INDEX IF NOT EXISTS "product_reviews_user_id_idx"
+        ON "product_reviews" USING btree ("user_id");
+      `);
+      await sqlClient.unsafe(`
+        CREATE INDEX IF NOT EXISTS "product_reviews_is_approved_idx"
+        ON "product_reviews" USING btree ("is_approved");
+      `);
+      await sqlClient.unsafe(`
+        CREATE INDEX IF NOT EXISTS "product_reviews_created_at_idx"
+        ON "product_reviews" USING btree ("created_at");
+      `);
+    })().catch((error) => {
+      productReviewsTableReadyPromise = null;
+      throw error;
+    });
+  }
+
+  await productReviewsTableReadyPromise;
 }
 
 function isMissingProductReviewsTableError(error: unknown) {

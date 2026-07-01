@@ -14,7 +14,7 @@ export default function ProductCarousel({
     children,
     showControls,
     className = "",
-    itemClassName = "w-[250px] sm:w-[280px] lg:w-[calc((100%-48px)/4)]",
+    itemClassName = "w-[250px] sm:w-[280px] lg:w-[calc((100%_-_48px)_/_4)]",
     ...trackProps
 }: ProductCarouselProps) {
     const trackRef = useRef<HTMLDivElement>(null);

@@ -268,6 +268,14 @@ export const orders = pgTable(
     totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).notNull(),
     status: orderStatusEnum("status").notNull().default("PENDING"),
     paymentStatus: paymentStatusEnum("payment_status").notNull().default("PENDING"),
+    courierName: text("courier_name"),
+    trackingNumber: text("tracking_number"),
+    trackingUrl: text("tracking_url"),
+    codAmountDue: numeric("cod_amount_due", { precision: 10, scale: 2 }),
+    codCollectedAt: timestamp("cod_collected_at", { withTimezone: true }),
+    dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+    outForDeliveryAt: timestamp("out_for_delivery_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
@@ -275,6 +283,7 @@ export const orders = pgTable(
     index("orders_status_idx").on(table.status),
     index("orders_payment_status_idx").on(table.paymentStatus),
     index("orders_customer_email_idx").on(table.customerEmail),
+    index("orders_tracking_number_idx").on(table.trackingNumber),
   ],
 );
 

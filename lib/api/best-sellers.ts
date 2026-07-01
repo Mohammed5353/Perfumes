@@ -15,6 +15,8 @@ export type ProductSalesMetric = {
   totalSold: number;
 };
 
+const BEST_SELLER_LIMIT = 4;
+
 export async function getBestSellerMode(): Promise<BestSellerMode> {
   const mode = await getSiteSetting(BEST_SELLER_MODE_KEY, "auto");
   return mode === "manual" ? "manual" : "auto";
@@ -43,15 +45,19 @@ export async function ensureMonthlyBestSellerEvaluation() {
 
 export async function evaluateBestSellers() {
   const metrics = await getProductSalesMetrics();
-  const topMonthly = pickTop(metrics, "monthlySold");
-  const topTrending = pickTop(metrics, "trendingSold");
+  const topMonthly = pickTop(metrics, "monthlySold", BEST_SELLER_LIMIT);
+  const topTrending = pickTop(metrics, "trendingSold", BEST_SELLER_LIMIT);
 
-  const bestSellerIds =
-    topMonthly.length > 0 ? topMonthly.map((item) => item.productId) : await fallbackIds("best");
-  const trendingIds =
-    topTrending.length > 0
-      ? topTrending.map((item) => item.productId)
-      : await fallbackIds("trending");
+  const bestSellerIds = await fillFromPastSalesOrFallback(
+    topMonthly.map((item) => item.productId),
+    metrics,
+    "best",
+  );
+  const trendingIds = await fillFromPastSalesOrFallback(
+    topTrending.map((item) => item.productId),
+    metrics,
+    "trending",
+  );
 
   await db.transaction(async (tx) => {
     await tx.update(products).set({
@@ -108,7 +114,7 @@ export async function getProductSalesMetrics(): Promise<ProductSalesMetric[]> {
     .leftJoin(orderItems, eq(orderItems.productId, products.id))
     .leftJoin(
       orders,
-      sql`${orders.id} = ${orderItems.orderId} and ${orders.status} not in ('CANCELLED', 'REJECTED', 'REFUNDED', 'RETURNED')`,
+      sql`${orders.id} = ${orderItems.orderId} and ${orders.status}::text not in ('CANCELLED', 'REJECTED', 'REFUNDED', 'RETURNED')`,
     )
     .where(eq(products.isActive, true))
     .groupBy(products.id);
@@ -128,6 +134,7 @@ export function getCurrentMonthKey(date = new Date()) {
 function pickTop(
   metrics: ProductSalesMetric[],
   key: "monthlySold" | "trendingSold",
+  limit: number,
 ) {
   return metrics
     .filter((item) => item[key] > 0)
@@ -138,27 +145,72 @@ function pickTop(
 
       return right.totalSold - left.totalSold;
     })
-    .slice(0, 4);
+    .slice(0, limit);
 }
 
-async function fallbackIds(type: "best" | "trending") {
+async function fillFromPastSalesOrFallback(
+  selectedIds: string[],
+  metrics: ProductSalesMetric[],
+  type: "best" | "trending",
+) {
+  const ids = [...selectedIds];
+  const selectedIdSet = new Set(ids);
+
+  const historicalIds = metrics
+    .filter((item) => item.totalSold > 0 && !selectedIdSet.has(item.productId))
+    .sort((left, right) => right.totalSold - left.totalSold)
+    .map((item) => item.productId);
+
+  for (const productId of historicalIds) {
+    ids.push(productId);
+    selectedIdSet.add(productId);
+
+    if (ids.length >= BEST_SELLER_LIMIT) {
+      return ids;
+    }
+  }
+
+  if (ids.length >= BEST_SELLER_LIMIT) {
+    return ids;
+  }
+
+  const fallback = await fallbackIds(type, selectedIdSet, BEST_SELLER_LIMIT - ids.length);
+  return [...ids, ...fallback];
+}
+
+async function fallbackIds(
+  type: "best" | "trending",
+  excludeIds: Set<string>,
+  limit: number,
+) {
   const rows = await db.query.products.findMany({
     where: eq(type === "best" ? products.isBestSeller : products.isFeatured, true),
     columns: { id: true },
     orderBy: desc(products.createdAt),
-    limit: 4,
+    limit: BEST_SELLER_LIMIT * 2,
   });
 
-  if (rows.length > 0) {
-    return rows.map((row) => row.id);
+  const existingIds = rows
+    .map((row) => row.id)
+    .filter((productId) => !excludeIds.has(productId))
+    .slice(0, limit);
+
+  if (existingIds.length >= limit) {
+    return existingIds;
   }
 
   const newest = await db.query.products.findMany({
     where: eq(products.isActive, true),
     columns: { id: true },
     orderBy: desc(products.createdAt),
-    limit: 4,
+    limit: BEST_SELLER_LIMIT * 2,
   });
 
-  return newest.map((row) => row.id);
+  const existingIdSet = new Set([...excludeIds, ...existingIds]);
+  const newestIds = newest
+    .map((row) => row.id)
+    .filter((productId) => !existingIdSet.has(productId))
+    .slice(0, limit - existingIds.length);
+
+  return [...existingIds, ...newestIds];
 }

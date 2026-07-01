@@ -18,6 +18,7 @@ import { isPostalCodeValid } from "@/lib/postal-code";
 import { requireCustomerUser } from "@/lib/user-auth";
 import { buildInvoiceHtml } from "@/lib/invoice";
 import { sendInvoiceEmail } from "@/lib/email";
+import { buildTrackingNumber, defaultCourierName } from "@/lib/delivery-tracking";
 
 type CheckoutBody = {
   firstName?: unknown;
@@ -198,6 +199,16 @@ async function createOrder(request: Request) {
         paymentStatus: "PENDING",
       })
       .returning({ id: orders.id });
+
+    await tx
+      .update(orders)
+      .set({
+        courierName: defaultCourierName,
+        trackingNumber: buildTrackingNumber(createdOrder.id),
+        codAmountDue: totalAmount.toFixed(2),
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, createdOrder.id));
 
     await tx.insert(orderItems).values(
       cartRows.map((item) => ({

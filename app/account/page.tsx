@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { Package, ShoppingBag, UserRound } from "lucide-react";
+import { Banknote, Package, ShoppingBag, Truck, UserRound } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { cartItems, orders, products } from "@/lib/db/schema";
+import { getCourierStepLabel } from "@/lib/delivery-tracking";
 import { formatOrderStatus } from "@/lib/order-status";
 import { requireCustomerUser } from "@/lib/user-auth";
 
@@ -43,6 +44,14 @@ export default async function AccountPage() {
         totalAmount: true,
         status: true,
         paymentStatus: true,
+        courierName: true,
+        trackingNumber: true,
+        trackingUrl: true,
+        codAmountDue: true,
+        codCollectedAt: true,
+        dispatchedAt: true,
+        outForDeliveryAt: true,
+        deliveredAt: true,
         createdAt: true,
       },
       orderBy: (table, { desc }) => [desc(table.createdAt)],
@@ -128,24 +137,53 @@ export default async function AccountPage() {
                       </span>
                     </div>
                     <p className="mt-1 text-textSecondary">
-                      {formatOrderStatus(order.status)} / {order.paymentStatus} /{" "}
-                      {order.createdAt.toLocaleDateString()}
+                      {order.createdAt.toLocaleDateString()} | {formatOrderStatus(order.status)}
                     </p>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {order.statusHistory.length > 0 ? (
-                        order.statusHistory.map((entry) => (
-                          <span
-                            key={entry.id}
-                            className="rounded-full bg-[#f6f1ea] px-2 py-1 text-[11px] font-semibold text-textSecondary"
-                          >
-                            {formatOrderStatus(entry.status)}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="rounded-full bg-[#f6f1ea] px-2 py-1 text-[11px] font-semibold text-textSecondary">
-                          {formatOrderStatus(order.status)}
+                    <div className="mt-3 rounded-lg bg-[#f6f1ea] p-3">
+                      <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-textSecondary">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Truck className="h-4 w-4" aria-hidden="true" />
+                          {order.courierName || "Courier pending"}
                         </span>
-                      )}
+                        <span>
+                          Tracking: {order.trackingNumber || "Not assigned"}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Banknote className="h-4 w-4" aria-hidden="true" />
+                          COD {order.codCollectedAt ? "collected" : "due"}{" "}
+                          ${Number(order.codAmountDue ?? order.totalAmount).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {order.statusHistory.length > 0 ? (
+                          order.statusHistory.map((entry) => (
+                            <span
+                              key={entry.id}
+                              className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                                entry.status === order.status
+                                  ? "bg-black text-white"
+                                  : "bg-white text-textSecondary"
+                              }`}
+                            >
+                              {getCourierStepLabel(entry.status)}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-textSecondary">
+                            {getCourierStepLabel(order.status)}
+                          </span>
+                        )}
+                      </div>
+                      {order.trackingUrl ? (
+                        <a
+                          href={order.trackingUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-3 inline-flex text-xs font-semibold text-textPrimary underline underline-offset-4"
+                        >
+                          Open courier tracking
+                        </a>
+                      ) : null}
                     </div>
                   </div>
                 ))}

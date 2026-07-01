@@ -78,6 +78,33 @@ export function clearGuestCart() {
   }
 }
 
+export async function mergeGuestCartIntoAccount() {
+  const cart = getGuestCart();
+
+  if (cart.length === 0) {
+    return;
+  }
+
+  const results = await Promise.all(
+    cart.map((item) =>
+      fetch("/api/cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: item.productId,
+          quantity: item.quantity,
+          scentOption: item.scentOption ?? "",
+        }),
+      }),
+    ),
+  );
+
+  if (results.every((response) => response.ok)) {
+    clearGuestCart();
+    window.dispatchEvent(new Event("scentora:auth-updated"));
+  }
+}
+
 export function getGuestCartQuantity() {
   return getGuestCart().reduce((total, item) => total + item.quantity, 0);
 }
