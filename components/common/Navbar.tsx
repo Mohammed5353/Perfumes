@@ -137,7 +137,12 @@ export default function Navbar() {
         </Link>
 
         <div className="flex flex-1 items-center justify-end gap-3 sm:gap-4">
-          <Link href="/cart" aria-label="Cart" className="relative">
+          <button
+            type="button"
+            aria-label="Open cart"
+            onClick={() => window.dispatchEvent(new Event("scentora:cart-open"))}
+            className="relative"
+          >
             <span className="grid h-9 w-9 place-items-center rounded-full border border-black/50 hover:bg-black/5">
               <ShoppingBag className="h-4 w-4" aria-hidden="true" />
             </span>
@@ -146,7 +151,7 @@ export default function Navbar() {
                 {cartQuantity}
               </span>
             ) : null}
-          </Link>
+          </button>
 
           <Link href="/wishlist" aria-label="Wishlist" className="relative">
             <span className="grid h-9 w-9 place-items-center rounded-full border border-black/50 hover:bg-black/5">

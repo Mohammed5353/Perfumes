@@ -25,6 +25,22 @@ type SendInvoiceEmailInput = {
   html: string;
 };
 
+type SendAdminOrderEmailInput = {
+  orderId: string;
+  customerName: string | null;
+  customerEmail: string;
+  customerPhone: string | null;
+  totalAmount: number;
+  status: string;
+  items?: Array<{
+    name: string;
+    quantity: number;
+    scentOption?: string | null;
+  }>;
+};
+
+const defaultAdminEmail = "mustafakheda07@gmail.com";
+
 export async function sendVerificationEmail({
   to,
   name,
@@ -181,6 +197,68 @@ export async function sendInvoiceEmail({
 
   if (!response.ok) {
     throw new Error("Unable to send invoice email");
+  }
+
+  return { sent: true, provider: "resend" as const };
+}
+
+export async function sendAdminOrderEmail({
+  orderId,
+  customerName,
+  customerEmail,
+  customerPhone,
+  totalAmount,
+  status,
+  items = [],
+}: SendAdminOrderEmailInput) {
+  const to = process.env.ADMIN_ORDER_EMAIL || defaultAdminEmail;
+  const subject = `Scentora order ${shortOrderId(orderId)} - ${formatStatus(status)}`;
+  const itemRows = items.length
+    ? items
+        .map(
+          (item) =>
+            `<li>${escapeHtml(String(item.quantity))} x ${escapeHtml(item.name)}${
+              item.scentOption ? ` (${escapeHtml(item.scentOption)})` : ""
+            }</li>`,
+        )
+        .join("")
+    : "<li>Items available in admin dashboard.</li>";
+
+  if (!process.env.RESEND_API_KEY) {
+    console.log(
+      `[dev] Admin email to ${to}: ${subject} for ${customerName || customerEmail}`,
+    );
+    return { sent: false, provider: "console" as const };
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: process.env.AUTH_EMAIL_FROM || "Scentora <onboarding@resend.dev>",
+      to,
+      subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #1a1a1a;">
+          <h1>${escapeHtml(subject)}</h1>
+          <p><strong>Customer:</strong> ${escapeHtml(customerName || "Guest")}</p>
+          <p><strong>Email:</strong> ${escapeHtml(customerEmail)}</p>
+          <p><strong>Phone:</strong> ${escapeHtml(customerPhone || "N/A")}</p>
+          <p><strong>Total:</strong> KWD ${escapeHtml(totalAmount.toFixed(2))}</p>
+          <p><strong>Status:</strong> ${escapeHtml(formatStatus(status))}</p>
+          <p><strong>Order:</strong> ${escapeHtml(shortOrderId(orderId))}</p>
+          <h2>Items</h2>
+          <ul>${itemRows}</ul>
+        </div>
+      `,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Unable to send admin order email");
   }
 
   return { sent: true, provider: "resend" as const };

@@ -27,8 +27,12 @@ export function statusNote(status: OrderStatus) {
       return "Order rejected and will not be processed";
     case "PROCESSING":
       return "Order is packed and ready for courier handover";
+    case "DISPATCHED":
+      return "Order dispatched from Scentora";
     case "SHIPPED":
       return "Shipment handed to courier";
+    case "IN_TRANSIT":
+      return "Order is in transit to the delivery area";
     case "OUT_FOR_DELIVERY":
       return "Courier is out for delivery. Please keep cash ready";
     case "DELIVERED":
@@ -53,8 +57,12 @@ export function getCourierStepLabel(status: string) {
     case "ACCEPTED":
       return "Confirmed";
     case "PROCESSING":
-      return "Packed";
+      return "Order processing";
+    case "DISPATCHED":
+      return "Order dispatched";
     case "SHIPPED":
+      return "Shipped";
+    case "IN_TRANSIT":
       return "In transit";
     case "OUT_FOR_DELIVERY":
       return "Out for delivery";
@@ -76,5 +84,170 @@ export function getCourierStepLabel(status: string) {
 }
 
 export function isDeliveryStatus(status: string) {
-  return ["PENDING", "ACCEPTED", "PROCESSING", "SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(status);
+  return [
+    "PENDING",
+    "ACCEPTED",
+    "PROCESSING",
+    "DISPATCHED",
+    "SHIPPED",
+    "IN_TRANSIT",
+    "OUT_FOR_DELIVERY",
+    "DELIVERED",
+  ].includes(status);
+}
+
+export const customerTrackingSteps = [
+  "PENDING",
+  "PROCESSING",
+  "DISPATCHED",
+  "IN_TRANSIT",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+] as const;
+
+export const fulfillmentFlow = [
+  "PENDING",
+  "ACCEPTED",
+  "PROCESSING",
+  "DISPATCHED",
+  "IN_TRANSIT",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+] as const satisfies readonly OrderStatus[];
+
+const terminalStatuses = [
+  "REJECTED",
+  "CANCELLED",
+  "RETURN_REQUESTED",
+  "RETURNED",
+  "REFUNDED",
+] as const satisfies readonly OrderStatus[];
+
+function getCustomerTrackingStepIndex(status: string) {
+  if (status === "ACCEPTED") {
+    return 0;
+  }
+
+  if (status === "SHIPPED") {
+    return customerTrackingSteps.findIndex((step) => step === "IN_TRANSIT");
+  }
+
+  return customerTrackingSteps.findIndex((step) => step === status);
+}
+
+function getFulfillmentFlowIndex(status: string) {
+  if (status === "SHIPPED") {
+    return fulfillmentFlow.findIndex((step) => step === "IN_TRANSIT");
+  }
+
+  return fulfillmentFlow.findIndex((step) => step === status);
+}
+
+export function canCustomerCancel(status: string) {
+  return ["PENDING", "ACCEPTED", "PROCESSING"].includes(status);
+}
+
+export function canCustomerReturn(status: string) {
+  return status === "DELIVERED";
+}
+
+export function getNextFulfillmentStatus(status: string): OrderStatus | null {
+  const currentIndex = getFulfillmentFlowIndex(status);
+
+  if (currentIndex < 0 || currentIndex >= fulfillmentFlow.length - 1) {
+    return null;
+  }
+
+  return fulfillmentFlow[currentIndex + 1];
+}
+
+export function getHighestFulfillmentStatus(statuses: string[]) {
+  let highestIndex = -1;
+
+  for (const status of statuses) {
+    const index = getCustomerTrackingStepIndex(status);
+
+    if (index > highestIndex) {
+      highestIndex = index;
+    }
+  }
+
+  return highestIndex >= 0 ? customerTrackingSteps[highestIndex] : null;
+}
+
+export function getEffectiveOrderStatus(
+  currentStatus: string,
+  historyStatuses: string[],
+) {
+  if ((terminalStatuses as readonly string[]).includes(currentStatus)) {
+    return currentStatus;
+  }
+
+  return getHighestFulfillmentStatus([...historyStatuses, currentStatus]) ?? currentStatus;
+}
+
+export function canTransitionOrderStatus(
+  currentStatus: OrderStatus,
+  nextStatus: OrderStatus,
+) {
+  if (currentStatus === nextStatus) {
+    return { allowed: true };
+  }
+
+  if ((terminalStatuses as readonly string[]).includes(currentStatus)) {
+    return {
+      allowed: false,
+      reason: `Order is already ${getCourierStepLabel(currentStatus).toLowerCase()}`,
+    };
+  }
+
+  if (nextStatus === "REJECTED") {
+    return currentStatus === "PENDING"
+      ? { allowed: true }
+      : { allowed: false, reason: "Only newly placed orders can be rejected" };
+  }
+
+  if (nextStatus === "CANCELLED") {
+    return canCustomerCancel(currentStatus)
+      ? { allowed: true }
+      : { allowed: false, reason: "Orders can only be cancelled before dispatch" };
+  }
+
+  if (nextStatus === "RETURN_REQUESTED") {
+    return currentStatus === "DELIVERED"
+      ? { allowed: true }
+      : { allowed: false, reason: "Returns can only be requested after delivery" };
+  }
+
+  if (nextStatus === "RETURNED") {
+    return currentStatus === "RETURN_REQUESTED"
+      ? { allowed: true }
+      : { allowed: false, reason: "Mark return requested before returned" };
+  }
+
+  if (nextStatus === "REFUNDED") {
+    return currentStatus === "RETURNED"
+      ? { allowed: true }
+      : { allowed: false, reason: "Refunds can only be marked after return" };
+  }
+
+  const currentIndex = getFulfillmentFlowIndex(currentStatus);
+  const nextIndex = getFulfillmentFlowIndex(nextStatus);
+
+  if (currentIndex < 0 || nextIndex < 0) {
+    return { allowed: false, reason: "This status is not part of fulfillment" };
+  }
+
+  if (nextIndex < currentIndex) {
+    return { allowed: false, reason: "Order tracking cannot move backward" };
+  }
+
+  if (nextIndex > currentIndex + 1) {
+    return {
+      allowed: false,
+      reason: `Advance to ${getCourierStepLabel(fulfillmentFlow[currentIndex + 1])} first`,
+    };
+  }
+
+  return { allowed: true };
 }

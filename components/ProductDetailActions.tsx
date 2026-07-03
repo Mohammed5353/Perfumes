@@ -57,6 +57,7 @@ export default function ProductDetailActions({
           quantity: 1,
           scentOption: selectedScent,
         });
+        window.dispatchEvent(new Event("scentora:cart-open"));
         return;
       }
 
@@ -65,6 +66,7 @@ export default function ProductDetailActions({
       }
 
       window.dispatchEvent(new Event("scentora:cart-updated"));
+      window.dispatchEvent(new Event("scentora:cart-open"));
     } finally {
       setAdding(false);
     }

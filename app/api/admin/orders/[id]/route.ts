@@ -10,7 +10,11 @@ import {
   type OrderStatus,
   type PaymentStatus,
 } from "@/lib/db/schema";
-import { statusNote } from "@/lib/delivery-tracking";
+import {
+  canTransitionOrderStatus,
+  getEffectiveOrderStatus,
+  statusNote,
+} from "@/lib/delivery-tracking";
 import { sendOrderStatusEmail } from "@/lib/email";
 import { sendOrderStatusSms } from "@/lib/sms";
 
@@ -100,10 +104,33 @@ export async function PATCH(request: Request, context: RouteContext) {
         customerName: true,
         customerPhone: true,
       },
+      with: {
+        statusHistory: {
+          columns: {
+            status: true,
+          },
+        },
+      },
     });
 
     if (!currentOrder) {
       return null;
+    }
+
+    const effectiveStatus = getEffectiveOrderStatus(
+      currentOrder.status,
+      currentOrder.statusHistory.map((entry) => entry.status),
+    ) as OrderStatus;
+
+    if (status) {
+      const transition = canTransitionOrderStatus(effectiveStatus, status);
+
+      if (!transition.allowed) {
+        return {
+          type: "invalid-transition" as const,
+          reason: transition.reason ?? "Invalid order status transition",
+        };
+      }
     }
 
     const shouldMarkPaid =
@@ -121,7 +148,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         ...(courierName !== undefined ? { courierName } : {}),
         ...(trackingNumber !== undefined ? { trackingNumber } : {}),
         ...(trackingUrl !== undefined ? { trackingUrl } : {}),
-        ...(nextStatus === "SHIPPED" ? { dispatchedAt: new Date() } : {}),
+        ...(nextStatus === "DISPATCHED" || nextStatus === "SHIPPED"
+          ? { dispatchedAt: new Date() }
+          : {}),
         ...(nextStatus === "OUT_FOR_DELIVERY" ? { outForDeliveryAt: new Date() } : {}),
         ...(nextStatus === "DELIVERED" ? { deliveredAt: new Date() } : {}),
         ...(shouldMarkPaid || codCollected ? { codCollectedAt: new Date() } : {}),
@@ -141,6 +170,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     return {
+      type: "updated" as const,
       id: updatedOrder.id,
       previousStatus: currentOrder.status,
       statusChanged: Boolean(status && status !== currentOrder.status),
@@ -156,6 +186,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   if (!updated) {
     return notFound("Order not found");
+  }
+
+  if (updated.type === "invalid-transition") {
+    return badRequest(updated.reason);
   }
 
   const order = await findOrderById(updated.id);

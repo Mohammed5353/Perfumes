@@ -17,8 +17,13 @@ import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { isPostalCodeValid } from "@/lib/postal-code";
 import { requireCustomerUser } from "@/lib/user-auth";
 import { buildInvoiceHtml } from "@/lib/invoice";
-import { sendInvoiceEmail } from "@/lib/email";
+import {
+  sendAdminOrderEmail,
+  sendInvoiceEmail,
+  sendOrderStatusEmail,
+} from "@/lib/email";
 import { buildTrackingNumber, defaultCourierName } from "@/lib/delivery-tracking";
+import { sendAdminOrderWhatsApp, sendOrderStatusSms } from "@/lib/sms";
 
 type CheckoutBody = {
   firstName?: unknown;
@@ -256,7 +261,7 @@ async function createOrder(request: Request) {
     return createdOrder;
   });
 
-  // Best effort: send invoice email. Do not block checkout on email failure.
+  // Best effort notifications. Do not block checkout on email/SMS/WhatsApp failure.
   try {
     const html = buildInvoiceHtml({
       orderId: order.id,
@@ -299,6 +304,53 @@ async function createOrder(request: Request) {
     });
   } catch (invoiceError) {
     console.error("Invoice email failed", invoiceError);
+  }
+
+  const orderNotification = {
+    orderId: order.id,
+    customerName: `${firstName} ${lastName}`,
+    customerEmail: email,
+    customerPhone: fullPhone,
+    totalAmount,
+    status: "PENDING",
+    items: cartRows.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      scentOption: item.scentOption || null,
+    })),
+  };
+
+  const notificationResults = await Promise.allSettled([
+    sendOrderStatusEmail({
+      to: email,
+      customerName: `${firstName} ${lastName}`,
+      orderId: order.id,
+      status: "PENDING",
+      note: `Your cash on delivery order has been placed. Total KWD ${totalAmount.toFixed(2)}.`,
+    }),
+    sendOrderStatusSms({
+      to: fullPhone,
+      orderId: order.id,
+      status: "PENDING",
+      note: `Your cash on delivery order has been placed. Total KWD ${totalAmount.toFixed(2)}.`,
+    }),
+    sendAdminOrderEmail(orderNotification),
+    sendAdminOrderWhatsApp(orderNotification),
+  ]);
+
+  const failedNotifications = notificationResults.filter(
+    (result) => result.status === "rejected",
+  );
+
+  if (failedNotifications.length > 0) {
+    console.error("Checkout notification failed", {
+      orderId: order.id,
+      failures: failedNotifications.map((result) =>
+        result.status === "rejected" && result.reason instanceof Error
+          ? result.reason.message
+          : "Unknown notification error",
+      ),
+    });
   }
 
   return NextResponse.json({

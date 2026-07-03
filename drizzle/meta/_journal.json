@@ -113,6 +113,20 @@
       "when": 1780617600000,
       "tag": "0015_order_status_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1780617700000,
+      "tag": "0016_order_delivery_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780617800000,
+      "tag": "0017_dispatch_transit_statuses",
+      "breakpoints": true
     }
   ]
 }

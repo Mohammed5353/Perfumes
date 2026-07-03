@@ -3,7 +3,9 @@ export const orderStatusValues = [
   "ACCEPTED",
   "REJECTED",
   "PROCESSING",
+  "DISPATCHED",
   "SHIPPED",
+  "IN_TRANSIT",
   "OUT_FOR_DELIVERY",
   "DELIVERED",
   "CANCELLED",
@@ -18,7 +20,9 @@ export const activeOrderStatuses = [
   "PENDING",
   "ACCEPTED",
   "PROCESSING",
+  "DISPATCHED",
   "SHIPPED",
+  "IN_TRANSIT",
   "OUT_FOR_DELIVERY",
 ] as const;
 
@@ -27,7 +31,9 @@ const orderStatusLabels: Record<OrderStatus, string> = {
   ACCEPTED: "Accepted",
   REJECTED: "Rejected",
   PROCESSING: "Processing",
+  DISPATCHED: "Dispatched",
   SHIPPED: "Shipped",
+  IN_TRANSIT: "In transit",
   OUT_FOR_DELIVERY: "Out for delivery",
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
@@ -53,6 +59,8 @@ export function getOrderStatusTone(
       return "warning";
     case "ACCEPTED":
     case "PROCESSING":
+    case "DISPATCHED":
+    case "IN_TRANSIT":
     case "OUT_FOR_DELIVERY":
       return "blue";
     case "SHIPPED":

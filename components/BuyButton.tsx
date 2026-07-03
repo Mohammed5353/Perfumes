@@ -42,7 +42,7 @@ export default function BuyButton({
           price: Number(price),
           quantity: 1,
         });
-        router.push("/cart");
+        window.dispatchEvent(new Event("scentora:cart-open"));
         return;
       }
 
@@ -51,7 +51,7 @@ export default function BuyButton({
       }
 
       window.dispatchEvent(new Event("scentora:cart-updated"));
-      router.push("/cart");
+      window.dispatchEvent(new Event("scentora:cart-open"));
     } finally {
       setLoading(false);
     }

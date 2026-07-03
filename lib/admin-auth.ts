@@ -1,9 +1,6 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
 
 export const ADMIN_SESSION_COOKIE = "scentora_admin_session";
 
@@ -74,12 +71,73 @@ export async function getAdminSession() {
   return parseAdminSessionToken(token);
 }
 
-export async function requireAdminUser(): Promise<AdminUser | null> {
+export function getAdminApiKeyFromHeaders(headersLike?: Headers | Request | null) {
+  const source = headersLike instanceof Request ? headersLike.headers : headersLike;
+
+  if (!source) {
+    return null;
+  }
+
+  const headerValue = source.get("x-api-key")?.trim();
+  if (headerValue) {
+    return headerValue;
+  }
+
+  const authorization = source.get("authorization")?.trim();
+  if (!authorization) {
+    return null;
+  }
+
+  if (authorization.startsWith("Bearer ")) {
+    return authorization.slice(7).trim();
+  }
+
+  if (authorization.startsWith("Token ")) {
+    return authorization.slice(6).trim();
+  }
+
+  return null;
+}
+
+export function isValidAdminApiKey(apiKey: string | null | undefined) {
+  if (!apiKey) {
+    return false;
+  }
+
+  const normalizedApiKey = apiKey.trim();
+  const configuredKeys = [process.env.ADMIN_API_KEY, process.env.ADMIN_API_KEYS]
+    .flatMap((value) =>
+      value
+        ? value
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean)
+        : [],
+    );
+
+  return configuredKeys.some((configuredKey) => configuredKey === normalizedApiKey);
+}
+
+export async function requireAdminUser(request?: Request | null): Promise<AdminUser | null> {
+  const incomingHeaders = request?.headers ?? (await headers());
+  const apiKey = getAdminApiKeyFromHeaders(incomingHeaders);
+
+  if (apiKey && isValidAdminApiKey(apiKey)) {
+    return {
+      id: "api-key",
+      email: "admin@api",
+      name: "API Key",
+      role: "ADMIN",
+    };
+  }
+
   const session = await getAdminSession();
 
   if (!session) {
     return null;
   }
+
+  const { eq, db, users } = await loadAdminDb();
 
   const user = await db.query.users.findFirst({
     where: eq(users.id, session.sub),
@@ -121,6 +179,16 @@ export function clearAdminSessionCookie(response: NextResponse) {
     path: "/",
     maxAge: 0,
   });
+}
+
+async function loadAdminDb() {
+  const [{ eq }, { db }, { users }] = await Promise.all([
+    import("drizzle-orm"),
+    import("@/lib/db"),
+    import("@/lib/db/schema"),
+  ]);
+
+  return { eq, db, users };
 }
 
 function parseAdminSessionToken(token: string | undefined): AdminSessionPayload | null {

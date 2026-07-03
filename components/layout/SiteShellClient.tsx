@@ -4,6 +4,7 @@ import { useUser } from "@clerk/nextjs";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import CartDrawer from "@/components/cart/CartDrawer";
 import Footer from "@/components/common/Footer";
 import Navbar from "@/components/common/Navbar";
 import PromoBar from "@/components/common/PromoBar";
@@ -48,6 +49,7 @@ export default function SiteShellClient({
     <>
       <PromoBar text={settings.promoBannerText} />
       <Navbar />
+      <CartDrawer />
       {children}
       <Footer settings={settings} />
     </>
