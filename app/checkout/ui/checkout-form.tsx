@@ -41,7 +41,7 @@ type AccountProfileResponse = {
   };
 };
 
-const whatsappCheckoutNumber = "919664146108";
+const whatsappCheckoutNumber = "+919664146108";
 const emptyShippingAddress = {
   firstName: "",
   lastName: "",
