@@ -158,8 +158,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     offers: {
       "@type": "Offer",
       url: productUrl,
-      priceCurrency: "USD",
-      price: product.price.toFixed(2),
+      priceCurrency: "KWD",
+      price: product.price.toFixed(3),
       availability,
       itemCondition: "https://schema.org/NewCondition",
     },

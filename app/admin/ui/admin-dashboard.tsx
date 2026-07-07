@@ -25,6 +25,7 @@ import {
   Mail,
   Menu,
   MessageSquareText,
+  Images,
   Package,
   PlusCircle,
   RefreshCcw,
@@ -33,6 +34,7 @@ import {
   ShoppingBag,
   Star,
   Trophy,
+  Truck,
   Upload,
   Users,
   Trash2,
@@ -40,12 +42,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { uploadImageToCloudinary } from "@/lib/api/uploads";
+import { formatKwd } from "@/lib/currency";
 import {
   canCustomerCancel,
   canCustomerReturn,
   getCourierStepLabel,
   getEffectiveOrderStatus,
   getNextFulfillmentStatus,
+  getTrackingHref,
 } from "@/lib/delivery-tracking";
 import {
   formatOrderStatus,
@@ -211,6 +215,16 @@ type SiteSettings = {
   instagramUrl: string;
   contactPhone: string;
   contactEmail: string;
+  home2PromoSlides: Home2PromoSlide[];
+};
+
+type Home2PromoSlide = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  image: string;
+  href: string;
+  cta: string;
 };
 
 type BestSellerAdminProduct = {
@@ -307,6 +321,8 @@ type NavId =
   | "products"
   | "collections"
   | "orders"
+  | "order-tracking"
+  | "home-2-slider"
   | "carts"
   | "reviews"
   | "messages"
@@ -324,6 +340,8 @@ const navItems: Array<{ id: NavId; label: string; icon: LucideIcon }> = [
   { id: "products", label: "Products", icon: Package },
   { id: "collections", label: "Collections", icon: ListOrdered },
   { id: "orders", label: "Orders", icon: ClipboardList },
+  { id: "order-tracking", label: "Order Tracking", icon: Truck },
+  { id: "home-2-slider", label: "Home 2 Slider", icon: Images },
   { id: "carts", label: "Carts", icon: ShoppingBag },
   { id: "best-sellers", label: "Best Sellers", icon: Trophy },
   { id: "reviews", label: "Reviews", icon: Star },
@@ -372,6 +390,35 @@ const defaultSiteSettings: SiteSettings = {
   instagramUrl: "",
   contactPhone: "+96500000000",
   contactEmail: "support@scentora.com",
+  home2PromoSlides: [
+    {
+      eyebrow: "AI Curated Edit",
+      title: "Indulge in Exquisite Fragrances",
+      description:
+        "Discover refined perfumes shaped around mood, memory, and modern elegance.",
+      image: "/images/hero.webp",
+      href: "/shop/all",
+      cta: "Shop fragrances",
+    },
+    {
+      eyebrow: "Limited Arrival",
+      title: "Signature Scents for Every Occasion",
+      description:
+        "Explore luminous florals, warm ambers, and confident woody blends.",
+      image: "/images/perfume-bottle.webp",
+      href: "/shop/all",
+      cta: "Explore arrivals",
+    },
+    {
+      eyebrow: "Best Seller Spotlight",
+      title: "Customer-Loved Perfume Stories",
+      description:
+        "Find the long-lasting blends that keep returning to the top shelf.",
+      image: "/images/perfume-blue.webp",
+      href: "/best-sellers",
+      cta: "View best sellers",
+    },
+  ],
 };
 
 const defaultBestSellerSettings: BestSellerSettings = {
@@ -415,6 +462,11 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm);
 
   const [orderFilters, setOrderFilters] = useState({
+    q: "",
+    status: "",
+    paymentStatus: "",
+  });
+  const [orderTrackingFilters, setOrderTrackingFilters] = useState({
     q: "",
     status: "",
     paymentStatus: "",
@@ -1107,6 +1159,19 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
       );
     }
 
+    if (activeView === "order-tracking") {
+      return (
+        <OrderTrackingView
+          filters={orderTrackingFilters}
+          orders={orders}
+          updatingOrderId={updatingOrderId}
+          onFiltersChange={setOrderTrackingFilters}
+          onUpdateOrder={onUpdateOrder}
+          onError={setError}
+        />
+      );
+    }
+
     if (activeView === "carts") {
       return <CartsView carts={carts} />;
     }
@@ -1158,7 +1223,7 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
       );
     }
 
-    if (activeView === "settings") {
+    if (activeView === "settings" || activeView === "home-2-slider") {
       return (
         <SettingsView
           settings={siteSettings}
@@ -1182,7 +1247,7 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f6fa] text-slate-950 lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+    <div className="min-h-screen bg-[#f3f6fa] text-slate-950 lg:grid lg:h-screen lg:grid-cols-[280px_minmax(0,1fr)] lg:overflow-hidden">
       {mobileSidebarOpen ? (
         <button
           type="button"
@@ -1204,7 +1269,7 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
         }}
       />
 
-      <div className="min-w-0">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-center gap-3">
@@ -1246,7 +1311,7 @@ export default function AdminDashboard({ admin }: { admin: AdminUser }) {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 lg:px-8">
+        <main className="mx-auto min-h-0 w-full max-w-[1500px] flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
           {error ? (
             <section className="mb-5 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -1307,7 +1372,7 @@ function AdminSidebar({
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-5">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-5">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = activeView === item.id;
@@ -1431,7 +1496,7 @@ function OverviewView({
               <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <HeroMetric
                   label="Order value"
-                  value={formatInr(stats.orderValue)}
+                  value={formatKwd(stats.orderValue)}
                   icon={DollarSign}
                 />
                 <HeroMetric
@@ -1488,12 +1553,12 @@ function OverviewView({
               </div>
 
               <div className="rounded-lg border border-white/10 bg-white/8 p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                       Order pipeline
                     </p>
-                    <p className="mt-1 text-lg font-semibold">Fulfillment flow</p>
+                    <p className="truncate mt-1 text-lg font-semibold">Fulfillment flow</p>
                   </div>
                   <ArrowUpRight className="h-5 w-5 text-emerald-300" aria-hidden="true" />
                 </div>
@@ -1585,17 +1650,17 @@ function OverviewView({
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <div>
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Stock map
               </p>
-              <h2 className="font-heading text-2xl font-semibold">Product capacity</h2>
+              <h2 className="truncate font-heading text-2xl font-semibold">Product capacity</h2>
             </div>
             <button
               type="button"
               onClick={() => onChangeView("products")}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="flex-shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
             >
               View products
             </button>
@@ -1722,7 +1787,7 @@ function OverviewView({
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold">{formatInr(order.totalAmount)}</p>
+                    <p className="text-sm font-semibold">{formatKwd(order.totalAmount)}</p>
                     <StatusPill
                       label={formatOrderStatus(order.status)}
                       tone={getOrderStatusTone(order.status)}
@@ -1760,7 +1825,7 @@ function OverviewView({
                     {cart.totalQuantity} items · {formatDate(cart.lastUpdatedAt)}
                   </p>
                 </div>
-                <p className="text-sm font-semibold">{formatInr(cart.subtotal)}</p>
+                <p className="text-sm font-semibold">{formatKwd(cart.subtotal)}</p>
               </div>
             ))}
           </div>
@@ -2267,7 +2332,7 @@ function ProductsView({
       </div>
 
       {products.length > 0 ? (
-        <div className="max-h-[calc(100vh-220px)] overflow-auto">
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -2305,9 +2370,9 @@ function ProductsView({
                   </td>
                   <td className="px-5 py-3">{product.category.name}</td>
                   <td className="px-5 py-3 font-medium text-slate-500">
-                    {formatInr(product.purchasePrice)}
+                    {formatKwd(product.purchasePrice)}
                   </td>
-                  <td className="px-5 py-3 font-semibold">{formatInr(product.price)}</td>
+                  <td className="px-5 py-3 font-semibold">{formatKwd(product.price)}</td>
                   <td className="px-5 py-3">
                     <StatusPill
                       label={String(product.stock)}
@@ -2631,7 +2696,7 @@ function OrdersView({
       </div>
 
       {orders.length > 0 ? (
-        <div className="max-h-[calc(100vh-250px)] overflow-auto">
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -2648,7 +2713,12 @@ function OrdersView({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {orders.map((order) => (
+              {orders.map((order) => {
+                const effectiveStatus = effectiveStatusFor(order);
+                const nextStatus = getNextFulfillmentStatus(effectiveStatus);
+                const trackingHref = getTrackingHref(order.trackingUrl);
+
+                return (
                 <tr key={order.id} className="hover:bg-slate-50/80">
                   <td className="px-5 py-3 font-medium">
                     <span className="font-mono text-xs">{order.id}</span>
@@ -2693,7 +2763,7 @@ function OrdersView({
                     </div>
                   </td>
                   <td className="px-5 py-3 font-semibold">
-                    {formatInr(order.totalAmount)}
+                    {formatKwd(order.totalAmount)}
                   </td>
                   <td className="px-5 py-3 text-xs font-semibold text-slate-600">
                     {formatPaymentMethod(order.paymentMethod)}
@@ -2730,36 +2800,41 @@ function OrdersView({
                         }
                         className="min-h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
                       />
+                      {trackingHref ? (
+                        <a
+                          href={trackingHref}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 underline underline-offset-4 hover:text-slate-950"
+                        >
+                          Open tracking
+                          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                        </a>
+                      ) : null}
                     </div>
                   </td>
                   <td className="px-5 py-3">
                     <div className="min-w-48 space-y-2">
                       <StatusPill
-                        label={formatOrderStatus(effectiveStatusFor(order))}
-                        tone={getOrderStatusTone(effectiveStatusFor(order))}
+                        label={formatOrderStatus(effectiveStatus)}
+                        tone={getOrderStatusTone(effectiveStatus)}
                       />
-                      {getNextFulfillmentStatus(effectiveStatusFor(order)) ? (
+                      {nextStatus ? (
                         <button
                           type="button"
                           disabled={updatingOrderId === order.id}
                           onClick={() =>
                             onUpdateOrder(order.id, {
-                              status:
-                                getNextFulfillmentStatus(effectiveStatusFor(order)) ??
-                                undefined,
+                              status: nextStatus,
                             })
                           }
                           className="w-full rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
                         >
-                          Advance to{" "}
-                          {getCourierStepLabel(
-                            getNextFulfillmentStatus(effectiveStatusFor(order)) ??
-                              effectiveStatusFor(order),
-                          )}
+                          Advance to {getCourierStepLabel(nextStatus)}
                         </button>
                       ) : null}
                       <div className="flex flex-wrap gap-1.5">
-                        {effectiveStatusFor(order) === "PENDING" ? (
+                        {effectiveStatus === "PENDING" ? (
                           <button
                             type="button"
                             disabled={updatingOrderId === order.id}
@@ -2771,7 +2846,7 @@ function OrdersView({
                             Reject
                           </button>
                         ) : null}
-                        {canCustomerCancel(effectiveStatusFor(order)) ? (
+                        {canCustomerCancel(effectiveStatus) ? (
                           <button
                             type="button"
                             disabled={updatingOrderId === order.id}
@@ -2783,7 +2858,7 @@ function OrdersView({
                             Cancel
                           </button>
                         ) : null}
-                        {canCustomerReturn(effectiveStatusFor(order)) ? (
+                        {canCustomerReturn(effectiveStatus, order.deliveredAt) ? (
                           <button
                             type="button"
                             disabled={updatingOrderId === order.id}
@@ -2795,19 +2870,19 @@ function OrdersView({
                             Return request
                           </button>
                         ) : null}
-                        {effectiveStatusFor(order) === "RETURN_REQUESTED" ? (
+                        {effectiveStatus === "RETURN_REQUESTED" ? (
                           <button
                             type="button"
                             disabled={updatingOrderId === order.id}
                             onClick={() =>
                               onUpdateOrder(order.id, { status: "RETURNED" })
                             }
-                            className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                            className="rounded-lg border border-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
                           >
-                            Mark returned
+                            Accept return
                           </button>
                         ) : null}
-                        {effectiveStatusFor(order) === "RETURNED" ? (
+                        {effectiveStatus === "RETURNED" ? (
                           <button
                             type="button"
                             disabled={updatingOrderId === order.id}
@@ -2878,7 +2953,250 @@ function OrdersView({
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState title="No orders found" />
+      )}
+    </section>
+  );
+}
+
+function OrderTrackingView({
+  filters,
+  orders,
+  updatingOrderId,
+  onFiltersChange,
+  onUpdateOrder,
+  onError,
+}: {
+  filters: {
+    q: string;
+    status: string;
+    paymentStatus: string;
+  };
+  orders: Order[];
+  updatingOrderId: string | null;
+  onFiltersChange: Dispatch<
+    SetStateAction<{
+      q: string;
+      status: string;
+      paymentStatus: string;
+    }>
+  >;
+  onUpdateOrder: (
+    orderId: string,
+    payload: {
+      status?: string;
+      paymentStatus?: string;
+      courierName?: string | null;
+      trackingNumber?: string | null;
+      trackingUrl?: string | null;
+      codCollected?: boolean;
+    },
+  ) => void;
+  onError: Dispatch<SetStateAction<string | null>>;
+}) {
+  const [sendingInvoiceId, setSendingInvoiceId] = useState<string | null>(null);
+
+  async function sendInvoice(orderId: string) {
+    setSendingInvoiceId(orderId);
+    onError(null);
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}/invoice`, {
+        method: "POST",
+      });
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok || body?.error) {
+        throw new Error(body?.error ?? "Failed to send invoice");
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Failed to send invoice");
+    } finally {
+      setSendingInvoiceId(null);
+    }
+  }
+
+  function effectiveStatusFor(order: Order) {
+    return getEffectiveOrderStatus(
+      order.status,
+      order.statusHistory.map((entry) => entry.status),
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 p-5">
+        <div className="mb-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Order tracking
+          </p>
+          <h2 className="font-heading text-3xl font-semibold">Track shipments</h2>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
+          <SearchInput
+            value={filters.q}
+            onChange={(value) => onFiltersChange((prev) => ({ ...prev, q: value }))}
+            placeholder="Search order, email, or customer"
+          />
+          <SelectField
+            label="Order status"
+            hideLabel
+            value={filters.status}
+            onChange={(value) =>
+              onFiltersChange((prev) => ({ ...prev, status: value }))
+            }
+          >
+            <option value="">All order statuses</option>
+            {orderStatusValues.map((status) => (
+              <option key={status} value={status}>
+                {formatOrderStatus(status)}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField
+            label="Payment status"
+            hideLabel
+            value={filters.paymentStatus}
+            onChange={(value) =>
+              onFiltersChange((prev) => ({ ...prev, paymentStatus: value }))
+            }
+          >
+            <option value="">All payment statuses</option>
+            {paymentStatuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      </div>
+
+      {orders.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1040px] text-left text-sm">
+            <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-5 py-3 font-semibold">Order</th>
+                <th className="px-5 py-3 font-semibold">Customer</th>
+                <th className="px-5 py-3 font-semibold">Courier</th>
+                <th className="px-5 py-3 font-semibold">Tracking</th>
+                <th className="px-5 py-3 font-semibold">Status</th>
+                <th className="px-5 py-3 font-semibold">Payment</th>
+                <th className="px-5 py-3 font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {orders.map((order) => {
+                const effectiveStatus = effectiveStatusFor(order);
+                const trackingHref = getTrackingHref(order.trackingUrl);
+
+                return (
+                  <tr key={order.id} className="hover:bg-slate-50/80">
+                    <td className="px-5 py-3 font-medium">
+                      <span className="font-mono text-xs">{order.id}</span>
+                      <div className="mt-2 text-xs text-slate-500">
+                        {formatDate(order.createdAt)}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="font-semibold">{order.customerName || "N/A"}</div>
+                      <div className="text-xs text-slate-500">{order.customerEmail}</div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <input
+                        type="text"
+                        value={order.courierName ?? ""}
+                        placeholder="Courier partner"
+                        disabled={updatingOrderId === order.id}
+                        onChange={(event) =>
+                          onUpdateOrder(order.id, {
+                            courierName: event.target.value || null,
+                          })
+                        }
+                        className="min-h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+                      />
+                    </td>
+                    <td className="px-5 py-3 space-y-2">
+                      <input
+                        type="text"
+                        value={order.trackingNumber ?? ""}
+                        placeholder="Tracking number"
+                        disabled={updatingOrderId === order.id}
+                        onChange={(event) =>
+                          onUpdateOrder(order.id, {
+                            trackingNumber: event.target.value || null,
+                          })
+                        }
+                        className="min-h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+                      />
+                      <input
+                        type="text"
+                        value={order.trackingUrl ?? ""}
+                        placeholder="Tracking URL"
+                        disabled={updatingOrderId === order.id}
+                        onChange={(event) =>
+                          onUpdateOrder(order.id, {
+                            trackingUrl: event.target.value || null,
+                          })
+                        }
+                        className="min-h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+                      />
+                      {trackingHref ? (
+                        <a
+                          href={trackingHref}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 underline underline-offset-4 hover:text-slate-950"
+                        >
+                          Open tracking
+                          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                        </a>
+                      ) : null}
+                    </td>
+                    <td className="px-5 py-3">
+                      <StatusPill
+                        label={formatOrderStatus(effectiveStatus)}
+                        tone={getOrderStatusTone(effectiveStatus)}
+                      />
+                      <div className="mt-2 text-xs text-slate-500">
+                        {order.courierName ? `${order.courierName}` : "No courier assigned"}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-xs font-semibold text-slate-600">
+                      {order.paymentStatus}
+                    </td>
+                    <td className="px-5 py-3 space-y-2">
+                      <button
+                        type="button"
+                        disabled={sendingInvoiceId === order.id}
+                        onClick={() => {
+                          void sendInvoice(order.id);
+                        }}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        {sendingInvoiceId === order.id ? "Sending..." : "Send invoice"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={updatingOrderId === order.id}
+                        onClick={() =>
+                          onUpdateOrder(order.id, {
+                            status: "DISPATCHED",
+                          })
+                        }
+                        className="w-full rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                      >
+                        Mark dispatched
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -2911,7 +3229,7 @@ function CartsView({ carts }: { carts: AdminCart[] }) {
                   <p className="text-sm text-slate-500">{cart.user.email}</p>
                 </div>
                 <div className="text-sm sm:text-right">
-                  <p className="font-semibold">{formatInr(cart.subtotal)}</p>
+                  <p className="font-semibold">{formatKwd(cart.subtotal)}</p>
                   <p className="text-slate-500">
                     {cart.totalQuantity} items · Updated {formatDate(cart.lastUpdatedAt)}
                   </p>
@@ -2941,9 +3259,9 @@ function CartsView({ carts }: { carts: AdminCart[] }) {
                           ) : null}
                         </td>
                         <td className="px-4 py-3">{item.quantity}</td>
-                        <td className="px-4 py-3">{formatInr(item.price)}</td>
+                        <td className="px-4 py-3">{formatKwd(item.price)}</td>
                         <td className="px-4 py-3 font-semibold">
-                          {formatInr(item.price * item.quantity)}
+                          {formatKwd(item.price * item.quantity)}
                         </td>
                         <td className="px-4 py-3 text-slate-600">
                           {formatDate(item.addedAt)}
@@ -3046,7 +3364,7 @@ function BestSellerView({
       </div>
 
       {settings.products.length > 0 ? (
-        <div className="max-h-[calc(100vh-260px)] overflow-auto">
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -3187,7 +3505,7 @@ function NewsletterSubscribersView({
       </div>
 
       {subscribers.length > 0 ? (
-        <div className="max-h-[calc(100vh-220px)] overflow-auto">
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -3265,7 +3583,7 @@ function ReviewsView({
       </div>
 
       {reviews.length > 0 ? (
-        <div className="max-h-[calc(100vh-220px)] overflow-auto">
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -3381,7 +3699,7 @@ function UsersView({
       </div>
 
       {users.length > 0 ? (
-        <div className="max-h-[calc(100vh-220px)] overflow-auto">
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[1320px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -3450,7 +3768,7 @@ function UsersView({
                     </p>
                   </td>
                   <td className="px-5 py-3 font-semibold">
-                    {formatInr(user.totalSpent)}
+                    {formatKwd(user.totalSpent)}
                   </td>
                   <td className="px-5 py-3">
                     <p className="font-medium">
@@ -3635,7 +3953,7 @@ function CouponsView({
         <div className="border-b border-slate-200 p-5">
           <h3 className="text-lg font-semibold">User coupon assignments</h3>
         </div>
-        <div className="max-h-[460px] overflow-auto">
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -3654,9 +3972,9 @@ function CouponsView({
                   <td className="px-5 py-3">
                     {item.coupon.discountType === "PERCENT"
                       ? `${item.coupon.discountValue}%`
-                      : formatInr(item.coupon.discountValue)}
+                      : formatKwd(item.coupon.discountValue)}
                   </td>
-                  <td className="px-5 py-3">{formatInr(item.coupon.minOrderAmount)}</td>
+                  <td className="px-5 py-3">{formatKwd(item.coupon.minOrderAmount)}</td>
                   <td className="px-5 py-3">
                     <StatusPill
                       label={item.usedAt ? "USED" : item.assignmentActive ? "ACTIVE" : "INACTIVE"}
@@ -3686,15 +4004,15 @@ function PanelHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-5">
-      <div>
+      <div className="min-w-0">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
           {eyebrow}
         </p>
-        <h2 className="font-heading text-2xl font-semibold">{title}</h2>
+        <h2 className="truncate font-heading text-2xl font-semibold">{title}</h2>
       </div>
       <button
         type="button"
-        className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        className="flex-shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
         onClick={onAction}
       >
         {actionLabel}
@@ -3763,6 +4081,120 @@ function SettingsView({
         </div>
 
         <div className="rounded-lg border border-slate-200 p-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Home 2
+              </p>
+              <h3 className="text-lg font-semibold">Promotional banner slider</h3>
+            </div>
+            <button
+              type="button"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={() =>
+                onChange((prev) => ({
+                  ...prev,
+                  home2PromoSlides: [
+                    ...prev.home2PromoSlides,
+                    {
+                      eyebrow: "AI Curated Edit",
+                      title: "New Promotional Banner",
+                      description: "Add your campaign message here.",
+                      image: "/images/hero.webp",
+                      href: "/shop/all",
+                      cta: "Shop now",
+                    },
+                  ],
+                }))
+              }
+            >
+              Add slide
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {settings.home2PromoSlides.map((slide, index) => (
+              <div
+                key={index}
+                className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+              >
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-700">
+                    Slide {index + 1}
+                  </p>
+                  {settings.home2PromoSlides.length > 1 ? (
+                    <button
+                      type="button"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-600 hover:bg-red-50"
+                      onClick={() =>
+                        onChange((prev) => ({
+                          ...prev,
+                          home2PromoSlides: prev.home2PromoSlides.filter(
+                            (_, slideIndex) => slideIndex !== index,
+                          ),
+                        }))
+                      }
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <InputField
+                    label="Eyebrow"
+                    value={slide.eyebrow}
+                    onChange={(value) =>
+                      updateHome2Slide(onChange, index, "eyebrow", value)
+                    }
+                  />
+                  <InputField
+                    label="Title"
+                    value={slide.title}
+                    onChange={(value) =>
+                      updateHome2Slide(onChange, index, "title", value)
+                    }
+                    required
+                  />
+                  <InputField
+                    label="Image URL"
+                    value={slide.image}
+                    onChange={(value) =>
+                      updateHome2Slide(onChange, index, "image", value)
+                    }
+                    required
+                  />
+                  <InputField
+                    label="Link URL"
+                    value={slide.href}
+                    onChange={(value) =>
+                      updateHome2Slide(onChange, index, "href", value)
+                    }
+                    required
+                  />
+                  <InputField
+                    label="Button label"
+                    value={slide.cta}
+                    onChange={(value) =>
+                      updateHome2Slide(onChange, index, "cta", value)
+                    }
+                  />
+                  <TextAreaField
+                    label="Description"
+                    value={slide.description}
+                    onChange={(value) =>
+                      updateHome2Slide(onChange, index, "description", value)
+                    }
+                    className="md:col-span-2"
+                    required
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 p-4">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
             Footer social links
           </p>
@@ -3812,6 +4244,20 @@ function SettingsView({
       </form>
     </section>
   );
+}
+
+function updateHome2Slide(
+  onChange: Dispatch<SetStateAction<SiteSettings>>,
+  index: number,
+  key: keyof Home2PromoSlide,
+  value: string,
+) {
+  onChange((prev) => ({
+    ...prev,
+    home2PromoSlides: prev.home2PromoSlides.map((slide, slideIndex) =>
+      slideIndex === index ? { ...slide, [key]: value } : slide,
+    ),
+  }));
 }
 
 function InputField({
@@ -4046,14 +4492,6 @@ function LoadingPanel() {
       Loading admin dashboard...
     </section>
   );
-}
-
-function formatInr(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 function formatDate(value: string) {

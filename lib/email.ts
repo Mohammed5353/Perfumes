@@ -1,3 +1,5 @@
+import { formatKwd } from "@/lib/currency";
+
 type SendVerificationEmailInput = {
   to: string;
   name: string;
@@ -39,7 +41,7 @@ type SendAdminOrderEmailInput = {
   }>;
 };
 
-const defaultAdminEmail = "mustafakheda07@gmail.com";
+const defaultAdminEmail = "mohammedpeepa31@gmail.com";
 
 export async function sendVerificationEmail({
   to,
@@ -247,7 +249,7 @@ export async function sendAdminOrderEmail({
           <p><strong>Customer:</strong> ${escapeHtml(customerName || "Guest")}</p>
           <p><strong>Email:</strong> ${escapeHtml(customerEmail)}</p>
           <p><strong>Phone:</strong> ${escapeHtml(customerPhone || "N/A")}</p>
-          <p><strong>Total:</strong> KWD ${escapeHtml(totalAmount.toFixed(2))}</p>
+          <p><strong>Total:</strong> ${escapeHtml(formatKwd(totalAmount))}</p>
           <p><strong>Status:</strong> ${escapeHtml(formatStatus(status))}</p>
           <p><strong>Order:</strong> ${escapeHtml(shortOrderId(orderId))}</p>
           <h2>Items</h2>

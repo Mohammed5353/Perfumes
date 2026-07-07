@@ -10,6 +10,7 @@ import {
   updateGuestCartItem,
   type GuestCartItem,
 } from "@/lib/guest-cart";
+import { formatKwd } from "@/lib/currency";
 
 type CartItem = GuestCartItem;
 
@@ -20,7 +21,6 @@ type CartResponse = {
 export default function CartDrawer() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<CartItem[]>([]);
-  const [guestMode, setGuestMode] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const subtotal = useMemo(
@@ -74,7 +74,6 @@ export default function CartDrawer() {
       const response = await fetch("/api/cart", { cache: "no-store" });
 
       if (response.status === 401) {
-        setGuestMode(true);
         setItems(getGuestCart());
         return;
       }
@@ -83,7 +82,6 @@ export default function CartDrawer() {
         throw new Error("Unable to load cart");
       }
 
-      setGuestMode(false);
       const body = (await response.json()) as CartResponse;
       setItems(body.data ?? []);
     } catch {
@@ -109,7 +107,6 @@ export default function CartDrawer() {
     });
 
     if (response.status === 401) {
-      setGuestMode(true);
       updateGuestCartItem(item.productId, quantity, item.scentOption ?? "");
       setItems(getGuestCart());
       return;
@@ -132,7 +129,6 @@ export default function CartDrawer() {
     });
 
     if (response.status === 401) {
-      setGuestMode(true);
       removeGuestCartItem(item.productId, item.scentOption ?? "");
       setItems(getGuestCart());
       return;
@@ -158,10 +154,10 @@ export default function CartDrawer() {
             onClick={() => setOpen(false)}
           />
           <motion.aside
-            className="fixed left-0 top-0 z-50 flex h-dvh w-full max-w-[390px] flex-col bg-white shadow-2xl"
-            initial={{ x: "-100%" }}
+            className="fixed right-0 top-0 z-50 flex h-dvh w-full max-w-[390px] flex-col bg-white shadow-2xl"
+            initial={{ x: "100%" }}
             animate={{ x: 0 }}
-            exit={{ x: "-100%" }}
+            exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             aria-label="Shopping cart"
           >
@@ -264,7 +260,7 @@ export default function CartDrawer() {
                           </button>
                         </div>
                         <p className="text-sm font-semibold">
-                          KWD {(item.price * item.quantity).toFixed(2)}
+                          {formatKwd(item.price * item.quantity)}
                         </p>
                       </div>
                     </div>
@@ -276,11 +272,11 @@ export default function CartDrawer() {
             <div className="border-t border-black/10 p-5">
               <div className="mb-4 flex items-center justify-between text-sm">
                 <span className="font-semibold text-textSecondary">Subtotal</span>
-                <span className="font-semibold">KWD {subtotal.toFixed(2)}</span>
+                <span className="font-semibold">{formatKwd(subtotal)}</span>
               </div>
               <div className="grid gap-2">
                 <Link
-                  href={guestMode ? "/sign-in?redirect_url=/checkout" : "/checkout"}
+                  href="/checkout"
                   onClick={() => setOpen(false)}
                   className="inline-flex min-h-11 items-center justify-center rounded-lg bg-black px-4 text-sm font-semibold text-white hover:bg-black/85"
                 >

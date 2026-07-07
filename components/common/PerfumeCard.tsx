@@ -9,6 +9,7 @@ import {
     isGuestWishlisted,
     removeGuestWishlistItem,
 } from "@/lib/guest-wishlist";
+import { formatKwd, parseCurrencyAmount } from "@/lib/currency";
 
 interface PerfumeCardProps {
     image: string;
@@ -41,7 +42,7 @@ export default function PerfumeCard({ image, name, notes, price, productId }: Pe
                     productId,
                     name,
                     image,
-                    price: Number(price.replace("$", "")),
+                    price: parseCurrencyAmount(price),
                     quantity: 1,
                 });
                 window.dispatchEvent(new Event("scentora:cart-updated"));
@@ -75,7 +76,7 @@ export default function PerfumeCard({ image, name, notes, price, productId }: Pe
                         productId,
                         name,
                         image,
-                        price: Number(price.replace("$", "")),
+                        price: parseCurrencyAmount(price),
                         notes,
                     });
                     setWishlistActive(true);
@@ -109,7 +110,7 @@ export default function PerfumeCard({ image, name, notes, price, productId }: Pe
                         {name}
                     </h3>
                     <p className="text-sm text-textSecondary">{notes}</p>
-                    <p className="text-accent font-semibold mt-1">{price}</p>
+                    <p className="text-accent font-semibold mt-1">{formatKwd(price)}</p>
                 </div>
             </div>
 

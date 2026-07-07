@@ -29,6 +29,7 @@ export async function POST(_request: Request, context: RouteContext) {
         id: true,
         userId: true,
         status: true,
+        deliveredAt: true,
       },
     });
 
@@ -36,7 +37,7 @@ export async function POST(_request: Request, context: RouteContext) {
       return { type: "not-found" as const };
     }
 
-    if (!canCustomerReturn(order.status)) {
+    if (!canCustomerReturn(order.status, order.deliveredAt)) {
       return { type: "bad-request" as const };
     }
 

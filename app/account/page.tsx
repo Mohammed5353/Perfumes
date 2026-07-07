@@ -6,6 +6,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { cartItems, orders, products } from "@/lib/db/schema";
 import { requireCustomerUser } from "@/lib/user-auth";
+import { formatKwd } from "@/lib/currency";
 import { OrderTrackingCard } from "./ui/order-tracking-card";
 
 export const metadata: Metadata = {
@@ -31,31 +32,25 @@ export default async function AccountPage() {
       .from(cartItems)
       .innerJoin(products, eq(cartItems.productId, products.id))
       .where(eq(cartItems.userId, user.id)),
-    db.query.orders.findMany({
-      where: eq(orders.userId, user.id),
-      with: {
-        statusHistory: {
-          orderBy: (table, { asc }) => [asc(table.createdAt)],
-        },
-      },
-      columns: {
-        id: true,
-        totalAmount: true,
-        status: true,
-        paymentStatus: true,
-        courierName: true,
-        trackingNumber: true,
-        trackingUrl: true,
-        codAmountDue: true,
-        codCollectedAt: true,
-        dispatchedAt: true,
-        outForDeliveryAt: true,
-        deliveredAt: true,
-        createdAt: true,
-      },
-      orderBy: (table, { desc }) => [desc(table.createdAt)],
-      limit: 5,
-    }),
+    db.select({
+      id: orders.id,
+      totalAmount: orders.totalAmount,
+      status: orders.status,
+      paymentStatus: orders.paymentStatus,
+      courierName: orders.courierName,
+      trackingNumber: orders.trackingNumber,
+      trackingUrl: orders.trackingUrl,
+      codAmountDue: orders.codAmountDue,
+      codCollectedAt: orders.codCollectedAt,
+      dispatchedAt: orders.dispatchedAt,
+      outForDeliveryAt: orders.outForDeliveryAt,
+      deliveredAt: orders.deliveredAt,
+      createdAt: orders.createdAt,
+    })
+      .from(orders)
+      .where(eq(orders.userId, user.id))
+      .orderBy(orders.createdAt)
+      .limit(5),
   ]);
 
   const totalQuantity = cartRows.reduce((sum, item) => sum + item.quantity, 0);
@@ -103,7 +98,7 @@ export default async function AccountPage() {
               <div className="rounded-lg bg-[#f6f1ea] p-4">
                 <p className="text-textSecondary">Subtotal</p>
                 <p className="mt-1 text-2xl font-semibold">
-                  KWD {subtotal.toFixed(2)}
+                  {formatKwd(subtotal)}
                 </p>
               </div>
             </div>

@@ -312,6 +312,28 @@ export async function getCollections() {
   };
 }
 
+export async function getBrands() {
+  const items = await db
+    .select({
+      name: products.brand,
+      total: count(),
+    })
+    .from(products)
+    .where(and(eq(products.isActive, true), sql`${products.parentProductId} is null`))
+    .groupBy(products.brand)
+    .orderBy(asc(products.brand));
+
+  return {
+    data: items.map((item) => ({
+      name: item.name,
+      total: item.total,
+    })),
+    meta: {
+      total: items.length,
+    },
+  };
+}
+
 export async function findCollectionBySlug(slug: string) {
   const collection = await db.query.collections.findFirst({
     where: eq(collections.slug, slug),
@@ -373,6 +395,7 @@ async function buildProductWhere(query: ProductQuery) {
       filters.push(
         or(
           ilike(products.name, `%${search}%`),
+          ilike(products.brand, `%${search}%`),
           ilike(products.modelNo, `%${search}%`),
           ilike(products.description, `%${search}%`),
           ilike(products.seoTitle, `%${search}%`),

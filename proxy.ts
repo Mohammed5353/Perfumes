@@ -2,9 +2,11 @@ import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse, type NextFetchEvent } from "next/server";
 
 const HOME_SEEN_COOKIE = "scentora_home_seen";
+const NEW_USER_HOME_PATH = "/home-2";
 const PUBLIC_AUTH_PATHS = [
   "/sign-in",
   "/sign-up",
+  "/sso-callback",
   "/logout",
   "/forgot-password",
 ];
@@ -28,9 +30,25 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
     return NextResponse.next();
   }
 
-  if (pathname !== "/" && !hasSeenHome && !isPublicAuthPath) {
+  if (isPublicAuthPath && !hasSeenHome) {
+    const response = NextResponse.next();
+    response.cookies.set(HOME_SEEN_COOKIE, "1", {
+      httpOnly: true,
+      maxAge: 60 * 60 * 24 * 30,
+      sameSite: "lax",
+      path: "/",
+    });
+
+    return response;
+  }
+
+  if (
+    pathname !== NEW_USER_HOME_PATH &&
+    !hasSeenHome &&
+    !isPublicAuthPath
+  ) {
     const homeUrl = request.nextUrl.clone();
-    homeUrl.pathname = "/";
+    homeUrl.pathname = NEW_USER_HOME_PATH;
     homeUrl.search = "";
 
     const response = NextResponse.redirect(homeUrl);
@@ -46,7 +64,7 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
 
   const response = NextResponse.next();
 
-  if (pathname === "/" && !hasSeenHome) {
+  if (pathname === NEW_USER_HOME_PATH && !hasSeenHome) {
     response.cookies.set(HOME_SEEN_COOKIE, "1", {
       httpOnly: true,
       maxAge: 60 * 60 * 24 * 30,
@@ -62,8 +80,6 @@ export const config = {
   matcher: [
     // Clerk proxy endpoints (must be reachable).
     "/__clerk/(.*)",
-    // API / RPC routes.
-    "/(api|trpc)(.*)",
     // Everything else except static files and Next internals.
     "/((?!admin|_next/static|_next/image|favicon.ico|.*\\..*).*)",
   ],

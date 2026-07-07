@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import CommonLink from "./common/CommonLink";
 import { addGuestCartItem } from "@/lib/guest-cart";
+import { formatKwd, parseCurrencyAmount } from "@/lib/currency";
 
 export default function BuyButton({
   image,
@@ -39,7 +40,7 @@ export default function BuyButton({
           productId,
           name: name || "Perfume",
           image: image || "/images/perfume-bottle.webp",
-          price: Number(price),
+          price: parseCurrencyAmount(price),
           quantity: 1,
         });
         window.dispatchEvent(new Event("scentora:cart-open"));
@@ -75,7 +76,7 @@ export default function BuyButton({
       )}
 
       <span className="rounded-pill border px-3 py-2 font-medium text-textPrimary">
-        ${price}
+        {formatKwd(price)}
       </span>
     </div>
   );

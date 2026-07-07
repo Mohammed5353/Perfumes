@@ -9,6 +9,7 @@ import {
     isGuestWishlisted,
     removeGuestWishlistItem,
 } from "@/lib/guest-wishlist";
+import { formatKwd, parseCurrencyAmount } from "@/lib/currency";
 
 type Props = {
   img: string;
@@ -40,7 +41,7 @@ export default function ProductCard({ img, title, price, productId }: Props) {
           productId,
           name: title,
           image: img,
-          price: Number(price.replace("$", "")),
+          price: parseCurrencyAmount(price),
           quantity: 1,
         });
         window.dispatchEvent(new Event("scentora:cart-updated"));
@@ -74,7 +75,7 @@ export default function ProductCard({ img, title, price, productId }: Props) {
             productId,
             name: title,
             image: img,
-            price: Number(price.replace("$", "")),
+            price: parseCurrencyAmount(price),
           });
           setWishlistActive(true);
         }
@@ -107,7 +108,7 @@ export default function ProductCard({ img, title, price, productId }: Props) {
           {title}
         </h3>
         <p className="text-accent font-body text-[1rem] font-medium mt-2">
-          {price}
+          {formatKwd(price)}
         </p>
       </div>
 

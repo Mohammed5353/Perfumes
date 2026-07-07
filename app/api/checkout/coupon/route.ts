@@ -1,5 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { badRequest, ok } from "@/lib/api/http";
+import { formatKwd } from "@/lib/currency";
 import { db } from "@/lib/db";
 import { userCoupons, users } from "@/lib/db/schema";
 import { requireCustomerUser } from "@/lib/user-auth";
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
 
   const minOrderAmount = Number(coupon.minOrderAmount);
   if (subtotal < minOrderAmount) {
-    return badRequest(`Minimum order amount is ${minOrderAmount.toFixed(2)}`);
+    return badRequest(`Minimum order amount is ${formatKwd(minOrderAmount)}`);
   }
 
   const discountValue = Number(coupon.discountValue);

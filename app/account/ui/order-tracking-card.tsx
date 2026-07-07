@@ -9,7 +9,9 @@ import {
   customerTrackingSteps,
   getEffectiveOrderStatus,
   getCourierStepLabel,
+  getTrackingHref,
 } from "@/lib/delivery-tracking";
+import { formatKwd } from "@/lib/currency";
 import { formatOrderStatus } from "@/lib/order-status";
 
 type OrderTrackingCardProps = {
@@ -22,8 +24,9 @@ type OrderTrackingCardProps = {
     trackingUrl: string | null;
     codAmountDue: string | number | null;
     codCollectedAt: Date | null;
+    deliveredAt: Date | null;
     createdAt: Date;
-    statusHistory: Array<{
+    statusHistory?: Array<{
       id: string;
       status: string;
       createdAt: Date;
@@ -38,7 +41,7 @@ export function OrderTrackingCard({ order }: OrderTrackingCardProps) {
   );
   const [error, setError] = useState<string | null>(null);
   const completedStatuses = new Set([
-    ...order.statusHistory.map((entry) => entry.status),
+    ...(order.statusHistory ?? []).map((entry) => entry.status),
     order.status,
   ]);
   const effectiveStatus = getEffectiveOrderStatus(order.status, [
@@ -47,6 +50,8 @@ export function OrderTrackingCard({ order }: OrderTrackingCardProps) {
   const currentStepIndex = customerTrackingSteps.findIndex(
     (step) => step === effectiveStatus,
   );
+  const trackingHref = getTrackingHref(order.trackingUrl);
+  const canReturn = canCustomerReturn(effectiveStatus, order.deliveredAt);
 
   async function runOrderAction(action: "cancel" | "return") {
     setPendingAction(action);
@@ -79,7 +84,7 @@ export function OrderTrackingCard({ order }: OrderTrackingCardProps) {
       <div className="flex items-center justify-between gap-3">
         <span className="font-medium">#{order.id.slice(0, 8)}</span>
         <span className="font-semibold">
-          KWD {Number(order.totalAmount).toFixed(2)}
+          {formatKwd(Number(order.totalAmount))}
         </span>
       </div>
       <p className="mt-1 text-textSecondary">
@@ -94,8 +99,8 @@ export function OrderTrackingCard({ order }: OrderTrackingCardProps) {
           <span>Tracking: {order.trackingNumber || "Not assigned"}</span>
           <span className="inline-flex items-center gap-1.5">
             <Banknote className="h-4 w-4" aria-hidden="true" />
-            COD {order.codCollectedAt ? "collected" : "due"} KWD{" "}
-            {Number(order.codAmountDue ?? order.totalAmount).toFixed(2)}
+            COD {order.codCollectedAt ? "collected" : "due"}{" "}
+            {formatKwd(Number(order.codAmountDue ?? order.totalAmount))}
           </span>
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-6">
@@ -115,9 +120,9 @@ export function OrderTrackingCard({ order }: OrderTrackingCardProps) {
             );
           })}
         </div>
-        {order.trackingUrl ? (
+        {trackingHref ? (
           <a
-            href={order.trackingUrl}
+            href={trackingHref}
             target="_blank"
             rel="noreferrer"
             className="mt-3 inline-flex text-xs font-semibold text-textPrimary underline underline-offset-4"
@@ -137,7 +142,7 @@ export function OrderTrackingCard({ order }: OrderTrackingCardProps) {
               {pendingAction === "cancel" ? "Cancelling..." : "Cancel order"}
             </button>
           ) : null}
-          {canCustomerReturn(effectiveStatus) ? (
+          {canReturn ? (
             <button
               type="button"
               disabled={pendingAction !== null}

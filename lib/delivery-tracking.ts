@@ -17,6 +17,20 @@ export function buildTrackingNumber(orderId: string) {
   return `SCT-${orderId.slice(0, 8).toUpperCase()}`;
 }
 
+export function getTrackingHref(trackingUrl: string | null) {
+  const trimmed = trackingUrl?.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
+}
+
 export function statusNote(status: OrderStatus) {
   switch (status) {
     case "PENDING":
@@ -42,7 +56,7 @@ export function statusNote(status: OrderStatus) {
     case "RETURN_REQUESTED":
       return "Return requested for this order";
     case "RETURNED":
-      return "Order returned successfully";
+      return "Your return request has been accepted. Our team will contact you with the next steps.";
     case "REFUNDED":
       return "Refund processed for this order";
     default:
@@ -75,7 +89,7 @@ export function getCourierStepLabel(status: string) {
     case "RETURN_REQUESTED":
       return "Return requested";
     case "RETURNED":
-      return "Returned";
+      return "Return accepted";
     case "REFUNDED":
       return "Refunded";
     default:
@@ -118,22 +132,8 @@ export const fulfillmentFlow = [
 const terminalStatuses = [
   "REJECTED",
   "CANCELLED",
-  "RETURN_REQUESTED",
-  "RETURNED",
   "REFUNDED",
 ] as const satisfies readonly OrderStatus[];
-
-function getCustomerTrackingStepIndex(status: string) {
-  if (status === "ACCEPTED") {
-    return 0;
-  }
-
-  if (status === "SHIPPED") {
-    return customerTrackingSteps.findIndex((step) => step === "IN_TRANSIT");
-  }
-
-  return customerTrackingSteps.findIndex((step) => step === status);
-}
 
 function getFulfillmentFlowIndex(status: string) {
   if (status === "SHIPPED") {
@@ -147,8 +147,28 @@ export function canCustomerCancel(status: string) {
   return ["PENDING", "ACCEPTED", "PROCESSING"].includes(status);
 }
 
-export function canCustomerReturn(status: string) {
-  return status === "DELIVERED";
+const RETURN_WINDOW_DAYS = 15;
+
+export function canCustomerReturn(status: string, deliveredAt?: Date | string | null) {
+  if (status !== "DELIVERED") {
+    return false;
+  }
+
+  if (!deliveredAt) {
+    return false;
+  }
+
+  const deliveredDate = deliveredAt instanceof Date ? deliveredAt : new Date(deliveredAt);
+
+  if (Number.isNaN(deliveredDate.getTime())) {
+    return false;
+  }
+
+  const now = new Date();
+  const cutoff = new Date(deliveredDate);
+  cutoff.setDate(cutoff.getDate() + RETURN_WINDOW_DAYS);
+
+  return now <= cutoff;
 }
 
 export function getNextFulfillmentStatus(status: string): OrderStatus | null {
@@ -165,14 +185,14 @@ export function getHighestFulfillmentStatus(statuses: string[]) {
   let highestIndex = -1;
 
   for (const status of statuses) {
-    const index = getCustomerTrackingStepIndex(status);
+    const index = getFulfillmentFlowIndex(status);
 
     if (index > highestIndex) {
       highestIndex = index;
     }
   }
 
-  return highestIndex >= 0 ? customerTrackingSteps[highestIndex] : null;
+  return highestIndex >= 0 ? fulfillmentFlow[highestIndex] : null;
 }
 
 export function getEffectiveOrderStatus(
@@ -222,7 +242,7 @@ export function canTransitionOrderStatus(
   if (nextStatus === "RETURNED") {
     return currentStatus === "RETURN_REQUESTED"
       ? { allowed: true }
-      : { allowed: false, reason: "Mark return requested before returned" };
+      : { allowed: false, reason: "A return must be requested before it can be accepted" };
   }
 
   if (nextStatus === "REFUNDED") {

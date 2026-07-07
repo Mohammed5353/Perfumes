@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
-import { ArrowRight, Banknote, MapPin, Phone } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ArrowRight, Banknote, MapPin, MessageCircle, Phone } from "lucide-react";
 import { City, Country, State } from "country-state-city";
 import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { clearGuestCart, getGuestCart } from "@/lib/guest-cart";
+import { formatKwd } from "@/lib/currency";
 import { isPostalCodeValid } from "@/lib/postal-code";
 
 type CheckoutResponse =
@@ -20,73 +21,89 @@ type CheckoutResponse =
       error: string;
     };
 
+type CheckoutCartItem = {
+  productId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  scentOption?: string;
+};
+
+type CartResponse = {
+  data?: CheckoutCartItem[];
+};
+
+type AccountProfileResponse = {
+  data?: {
+    email: string;
+    name: string | null;
+    shippingAddress: Partial<typeof emptyShippingAddress> | null;
+  };
+};
+
+const whatsappCheckoutNumber = "919664146108";
+const emptyShippingAddress = {
+  firstName: "",
+  lastName: "",
+  dialCode: "",
+  phone: "",
+  countryCode: "",
+  stateCode: "",
+  city: "",
+  state: "",
+  addressLine1: "",
+  addressLine2: "",
+  postalCode: "",
+  country: "",
+};
+
 export default function CheckoutForm() {
   const router = useRouter();
-  const defaultCountryCode = "IN";
-  const defaultState = State.getStatesOfCountry(defaultCountryCode)[0];
-  const defaultCity = defaultState
-    ? City.getCitiesOfState(defaultCountryCode, defaultState.isoCode)[0]
-    : undefined;
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    dialCode: "+91",
-    phone: "",
-    addressLine1: "",
-    addressLine2: "",
-    countryCode: defaultCountryCode,
-    stateCode: defaultState?.isoCode ?? "",
-    city: defaultCity?.name ?? "",
-    state: defaultState?.name ?? "",
-    postalCode: "",
-    country: "India",
-    couponCode: "",
-  });
+  const [form, setForm] = useState(() => getInitialCheckoutForm());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProfile() {
+      try {
+        const response = await fetch("/api/account/profile", { cache: "no-store" });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const body = (await response.json()) as AccountProfileResponse;
+        const profile = body.data;
+
+        if (!active || !profile) {
+          return;
+        }
+
+        setForm((current) => mergeProfileIntoForm(current, profile));
+      } catch {
+        // Guests or profile fetch failures simply keep the blank checkout form.
+      }
+    }
+
+    void loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError(null);
 
-    const selectedCountry = Country.getCountryByCode(form.countryCode);
-    const requiredFields = [
-      form.firstName,
-      form.lastName,
-      form.email,
-      form.dialCode,
-      form.phone,
-      form.countryCode,
-      form.stateCode,
-      form.city,
-      form.addressLine1,
-      form.postalCode,
-    ];
+    const validationError = validateCheckoutForm();
 
-    if (requiredFields.some((field) => !field.trim())) {
-      setError(
-        "First name, last name, email, phone number, country, state, city, address line 1, and zip/postal code are required.",
-      );
-      setLoading(false);
-      return;
-    }
-
-    const fullPhone = `${form.dialCode} ${form.phone}`;
-
-    if (!isPostalCodeValid(form.countryCode, form.postalCode)) {
-      setError(
-        `Postal code is not valid for ${selectedCountry?.name || form.country}.`,
-      );
-      setLoading(false);
-      return;
-    }
-
-    if (!isValidPhoneNumber(fullPhone, form.countryCode as CountryCode)) {
-      setError(
-        `Mobile number is not valid for ${selectedCountry?.name || form.country}.`,
-      );
+    if (validationError) {
+      setError(validationError);
       setLoading(false);
       return;
     }
@@ -123,6 +140,155 @@ export default function CheckoutForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onWhatsAppCheckout() {
+    setWhatsappLoading(true);
+    setError(null);
+
+    const validationError = validateCheckoutForm();
+
+    if (validationError) {
+      setError(validationError);
+      setWhatsappLoading(false);
+      return;
+    }
+
+    try {
+      const cartItems = await loadCheckoutCartItems();
+
+      if (cartItems.length === 0) {
+        throw new Error("Your cart is empty");
+      }
+
+      const guestItems = getGuestCart().map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        scentOption: item.scentOption,
+      }));
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, guestItems, couponCode: form.couponCode }),
+      });
+      const body = await readCheckoutResponse(response);
+
+      if (!response.ok || "error" in body) {
+        throw new Error("error" in body ? body.error : "Unable to place order");
+      }
+
+      const orderId = body.data.orderId;
+      const message = buildWhatsAppCheckoutMessage(orderId, cartItems);
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=${whatsappCheckoutNumber}&text=${encodeURIComponent(
+        message,
+      )}`;
+
+      window.dispatchEvent(new Event("scentora:cart-updated"));
+      clearGuestCart();
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+      router.refresh();
+    } catch (checkoutError) {
+      setError(
+        checkoutError instanceof Error
+          ? checkoutError.message
+          : "Unable to start WhatsApp checkout",
+      );
+    } finally {
+      setWhatsappLoading(false);
+    }
+  }
+
+  function validateCheckoutForm() {
+    const selectedCountry = Country.getCountryByCode(form.countryCode);
+    const requiredFields = [
+      form.firstName,
+      form.lastName,
+      form.email,
+      form.dialCode,
+      form.phone,
+      form.countryCode,
+      form.stateCode,
+      form.city,
+      form.addressLine1,
+      form.postalCode,
+    ];
+
+    if (requiredFields.some((field) => !field.trim())) {
+      return "First name, last name, email, phone number, country, state, city, address line 1, and zip/postal code are required.";
+    }
+
+    if (!isPostalCodeValid(form.countryCode, form.postalCode)) {
+      return `Postal code is not valid for ${selectedCountry?.name || form.country}.`;
+    }
+
+    const fullPhone = `${form.dialCode} ${form.phone}`;
+
+    if (!isValidPhoneNumber(fullPhone, form.countryCode as CountryCode)) {
+      return `Mobile number is not valid for ${selectedCountry?.name || form.country}.`;
+    }
+
+    return null;
+  }
+
+  async function loadCheckoutCartItems(): Promise<CheckoutCartItem[]> {
+    try {
+      const response = await fetch("/api/cart", { cache: "no-store" });
+
+      if (response.ok) {
+        const body = (await response.json()) as CartResponse;
+        return body.data ?? [];
+      }
+    } catch {
+      // Fall back to guest cart below.
+    }
+
+    return getGuestCart().map((item) => ({
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      scentOption: item.scentOption,
+    }));
+  }
+
+  function buildWhatsAppCheckoutMessage(orderId: string, cartItems: CheckoutCartItem[]) {
+    const subtotal = cartItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0,
+    );
+    const fullPhone = `${form.dialCode} ${form.phone}`;
+    const address = [
+      form.addressLine1,
+      form.addressLine2,
+      form.city,
+      form.state,
+      form.postalCode,
+      form.country,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    const itemLines = cartItems.map(
+      (item) =>
+        `- ${item.name}${item.scentOption ? ` (${item.scentOption})` : ""} x${item.quantity} - ${formatKwd(
+          item.price * item.quantity,
+        )}`,
+    );
+
+    return [
+      "New Scentora WhatsApp checkout",
+      `Order ID: ${orderId}`,
+      `Customer: ${form.firstName} ${form.lastName}`,
+      `Email: ${form.email}`,
+      `Phone: ${fullPhone}`,
+      `Payment: Cash on Delivery`,
+      `Address: ${address}`,
+      "Items:",
+      ...itemLines,
+      `Subtotal: ${formatKwd(subtotal)}`,
+      form.couponCode ? `Coupon: ${form.couponCode}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
   }
 
   function updateField(field: keyof typeof form, value: string) {
@@ -298,19 +464,94 @@ export default function CheckoutForm() {
             <Link href="/cart" className="text-center text-sm font-medium hover:opacity-70">
               Back to cart
             </Link>
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-black px-5 text-sm font-semibold text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? "Placing order..." : "Place order"}
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </button>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                disabled={loading || whatsappLoading}
+                onClick={onWhatsAppCheckout}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#25D366] px-5 text-sm font-semibold text-white hover:bg-[#1fb85a] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                {whatsappLoading ? "Opening WhatsApp..." : "WhatsApp checkout"}
+              </button>
+              <button
+                type="submit"
+                disabled={loading || whatsappLoading}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-black px-5 text-sm font-semibold text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? "Placing order..." : "Place order"}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </form>
       </section>
     </main>
   );
+}
+
+function mergeProfileIntoForm(
+  current: ReturnType<typeof getInitialCheckoutForm>,
+  profile: NonNullable<AccountProfileResponse["data"]>,
+) {
+  const initial = getInitialCheckoutForm();
+  const shipping = profile.shippingAddress ?? emptyShippingAddress;
+  const [firstNameFromProfile, ...lastNameParts] = (profile.name ?? "").split(" ");
+  const lastNameFromProfile = lastNameParts.join(" ");
+
+  return {
+    ...current,
+    firstName: current.firstName || shipping.firstName || firstNameFromProfile || "",
+    lastName: current.lastName || shipping.lastName || lastNameFromProfile || "",
+    email: current.email || profile.email || "",
+    dialCode:
+      current.dialCode === initial.dialCode
+        ? shipping.dialCode || current.dialCode
+        : current.dialCode,
+    phone: current.phone || shipping.phone || "",
+    addressLine1: current.addressLine1 || shipping.addressLine1 || "",
+    addressLine2: current.addressLine2 || shipping.addressLine2 || "",
+    countryCode:
+      current.countryCode === initial.countryCode
+        ? shipping.countryCode || current.countryCode
+        : current.countryCode,
+    stateCode:
+      current.stateCode === initial.stateCode
+        ? shipping.stateCode || current.stateCode
+        : current.stateCode,
+    city:
+      current.city === initial.city ? shipping.city || current.city : current.city,
+    state:
+      current.state === initial.state ? shipping.state || current.state : current.state,
+    postalCode: current.postalCode || shipping.postalCode || "",
+    country:
+      current.country === initial.country ? shipping.country || current.country : current.country,
+  };
+}
+
+function getInitialCheckoutForm() {
+  const defaultCountryCode = "IN";
+  const defaultState = State.getStatesOfCountry(defaultCountryCode)[0];
+  const defaultCity = defaultState
+    ? City.getCitiesOfState(defaultCountryCode, defaultState.isoCode)[0]
+    : undefined;
+
+  return {
+    firstName: "",
+    lastName: "",
+    email: "",
+    dialCode: "+91",
+    phone: "",
+    addressLine1: "",
+    addressLine2: "",
+    countryCode: defaultCountryCode,
+    stateCode: defaultState?.isoCode ?? "",
+    city: defaultCity?.name ?? "",
+    state: defaultState?.name ?? "",
+    postalCode: "",
+    country: "India",
+    couponCode: "",
+  };
 }
 
 async function readCheckoutResponse(response: Response): Promise<CheckoutResponse> {

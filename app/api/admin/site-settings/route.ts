@@ -5,6 +5,7 @@ import {
   CONTACT_EMAIL_KEY,
   CONTACT_PHONE_KEY,
   FACEBOOK_URL_KEY,
+  HOME2_PROMO_SLIDES_KEY,
   INSTAGRAM_URL_KEY,
   PROMO_BANNER_TEXT_KEY,
   setSiteSetting,
@@ -20,6 +21,7 @@ type SiteSettingsBody = {
   instagramUrl?: unknown;
   contactPhone?: unknown;
   contactEmail?: unknown;
+  home2PromoSlides?: unknown;
 };
 
 export async function GET() {
@@ -50,9 +52,14 @@ export async function PATCH(request: Request) {
   const instagramUrl = normalizeString(body.instagramUrl);
   const contactPhone = normalizeString(body.contactPhone);
   const contactEmail = normalizeString(body.contactEmail);
+  const home2PromoSlides = normalizeSlides(body.home2PromoSlides);
 
   if (!promoBannerText) {
     return badRequest("Promotional line is required");
+  }
+
+  if (home2PromoSlides.length === 0) {
+    return badRequest("At least one Home 2 promotional slide is required");
   }
 
   await setSiteSetting(PROMO_BANNER_TEXT_KEY, promoBannerText);
@@ -63,6 +70,7 @@ export async function PATCH(request: Request) {
     setSiteSetting(INSTAGRAM_URL_KEY, instagramUrl),
     setSiteSetting(CONTACT_PHONE_KEY, contactPhone),
     setSiteSetting(CONTACT_EMAIL_KEY, contactEmail),
+    setSiteSetting(HOME2_PROMO_SLIDES_KEY, JSON.stringify(home2PromoSlides)),
   ]);
 
   return Response.json({
@@ -73,6 +81,31 @@ export async function PATCH(request: Request) {
 
 function normalizeString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeSlides(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((slide) => {
+      if (!slide || typeof slide !== "object") {
+        return null;
+      }
+
+      const record = slide as Record<string, unknown>;
+
+      return {
+        eyebrow: normalizeString(record.eyebrow),
+        title: normalizeString(record.title),
+        description: normalizeString(record.description),
+        image: normalizeString(record.image),
+        href: normalizeString(record.href) || "/shop/all",
+        cta: normalizeString(record.cta) || "Shop now",
+      };
+    })
+    .filter((slide) => Boolean(slide?.title && slide.description && slide.image));
 }
 
 async function readBody(request: Request): Promise<SiteSettingsBody> {

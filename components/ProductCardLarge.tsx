@@ -11,6 +11,7 @@ import {
     isGuestWishlisted,
     removeGuestWishlistItem,
 } from "@/lib/guest-wishlist";
+import { parseCurrencyAmount } from "@/lib/currency";
 
 interface ProductCardProps {
     productId?: string;
@@ -59,7 +60,7 @@ export default function ProductCardLarge({
                     productId,
                     name,
                     image,
-                    price: Number(price),
+                    price: parseCurrencyAmount(price),
                     quantity: 1,
                 });
                 return;
@@ -98,7 +99,7 @@ export default function ProductCardLarge({
                         productId,
                         name,
                         image,
-                        price: Number(price),
+                        price: parseCurrencyAmount(price),
                         notes,
                         tag,
                         slug,

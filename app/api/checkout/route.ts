@@ -17,6 +17,7 @@ import { isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 import { isPostalCodeValid } from "@/lib/postal-code";
 import { requireCustomerUser } from "@/lib/user-auth";
 import { buildInvoiceHtml } from "@/lib/invoice";
+import { formatKwd } from "@/lib/currency";
 import {
   sendAdminOrderEmail,
   sendInvoiceEmail,
@@ -313,6 +314,21 @@ async function createOrder(request: Request) {
     customerPhone: fullPhone,
     totalAmount,
     status: "PENDING",
+    paymentMethod: "CASH_ON_DELIVERY",
+    subtotal,
+    shippingFee,
+    discountAmount,
+    shippingAddress: {
+      firstName,
+      lastName,
+      fullPhone,
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      postalCode,
+      country,
+    },
     items: cartRows.map((item) => ({
       name: item.name,
       quantity: item.quantity,
@@ -326,13 +342,13 @@ async function createOrder(request: Request) {
       customerName: `${firstName} ${lastName}`,
       orderId: order.id,
       status: "PENDING",
-      note: `Your cash on delivery order has been placed. Total KWD ${totalAmount.toFixed(2)}.`,
+      note: `Your cash on delivery order has been placed. Total ${formatKwd(totalAmount)}.`,
     }),
     sendOrderStatusSms({
       to: fullPhone,
       orderId: order.id,
       status: "PENDING",
-      note: `Your cash on delivery order has been placed. Total KWD ${totalAmount.toFixed(2)}.`,
+      note: `Your cash on delivery order has been placed. Total ${formatKwd(totalAmount)}.`,
     }),
     sendAdminOrderEmail(orderNotification),
     sendAdminOrderWhatsApp(orderNotification),

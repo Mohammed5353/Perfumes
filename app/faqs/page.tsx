@@ -41,7 +41,7 @@ const faqs = [
   {
     question: "Can I return or exchange a perfume?",
     answer:
-      "Returns and exchanges are subject to our return policy. Please contact our customer support team for assistance regarding damaged or incorrect products.",
+      "Eligible returns and exchanges must be requested within 15 days of delivery. After 15 days, the return option will no longer be available for that order.",
   },
   {
     question: "How can I choose the right perfume?",

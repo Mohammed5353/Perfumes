@@ -11,6 +11,7 @@ import {
     isGuestWishlisted,
     removeGuestWishlistItem,
 } from "@/lib/guest-wishlist";
+import { formatKwd, parseCurrencyAmount } from "@/lib/currency";
 
 interface ProductCardWideProps {
     productId?: string;
@@ -64,7 +65,7 @@ export default function ProductCardWide({
                     productId,
                     name,
                     image,
-                    price: Number(price),
+                    price: parseCurrencyAmount(price),
                     quantity: 1,
                 });
                 return;
@@ -103,7 +104,7 @@ export default function ProductCardWide({
                         productId,
                         name,
                         image,
-                        price: Number(price),
+                        price: parseCurrencyAmount(price),
                         notes,
                         slug,
                     });
@@ -155,7 +156,7 @@ export default function ProductCardWide({
                 {/* Price & stock */}
                 <div className="flex items-center gap-3 mb-5">
                     <p className="text-xl font-semibold text-accent">
-                        ${price}
+                        {formatKwd(price)}
                     </p>
                     <span className="bg-[#FFEBCB] text-accent text-sm font-medium px-3 py-1 rounded-full">
                         {stockText}

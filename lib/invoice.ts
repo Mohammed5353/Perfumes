@@ -23,7 +23,7 @@ type InvoiceInput = {
 export function buildInvoiceHtml(input: InvoiceInput) {
   const createdAt = input.createdAt instanceof Date ? input.createdAt : new Date(input.createdAt);
   const address = normalizeShippingAddress(input.shippingAddress);
-  const currency = input.currency || "INR";
+  const currency = input.currency || "KWD";
   const shortId = shortOrderId(input.orderId);
   const orderDate = createdAt.toLocaleDateString("en-IN", {
     day: "2-digit",
@@ -32,7 +32,12 @@ export function buildInvoiceHtml(input: InvoiceInput) {
   });
 
   const formatMoney = (value: number) =>
-    new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(value);
+    new Intl.NumberFormat("en-KW", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    }).format(value);
 
   const rows = input.items
     .map((item) => {
@@ -167,4 +172,3 @@ function normalizeShippingAddress(value: unknown) {
 
   return parts.join(", ");
 }
-

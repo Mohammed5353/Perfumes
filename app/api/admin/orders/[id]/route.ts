@@ -16,7 +16,7 @@ import {
   statusNote,
 } from "@/lib/delivery-tracking";
 import { sendOrderStatusEmail } from "@/lib/email";
-import { sendOrderStatusSms } from "@/lib/sms";
+import { sendOrderStatusSms, sendOrderStatusWhatsApp } from "@/lib/sms";
 
 type RouteContext = {
   params: Promise<{
@@ -201,11 +201,14 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (updated.statusChanged && updated.newStatus) {
     await notifyCustomerAboutOrderStatus({
       orderId: updated.id,
-      customerEmail: updated.customerEmail,
-      customerName: updated.customerName,
-      customerPhone: updated.customerPhone,
+      customerEmail: order.customerEmail,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
       status: updated.newStatus,
       note: statusNote(updated.newStatus),
+      courierName: order.courierName,
+      trackingNumber: order.trackingNumber,
+      trackingUrl: order.trackingUrl,
     });
   }
 
@@ -234,6 +237,9 @@ async function notifyCustomerAboutOrderStatus({
   customerPhone,
   status,
   note,
+  courierName,
+  trackingNumber,
+  trackingUrl,
 }: {
   orderId: string;
   customerEmail: string;
@@ -241,6 +247,9 @@ async function notifyCustomerAboutOrderStatus({
   customerPhone: string | null;
   status: OrderStatus;
   note: string;
+  courierName: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
 }) {
   const tasks: Array<Promise<unknown>> = [
     sendOrderStatusEmail({
@@ -259,6 +268,15 @@ async function notifyCustomerAboutOrderStatus({
         orderId,
         status,
         note,
+      }),
+      sendOrderStatusWhatsApp({
+        to: customerPhone,
+        orderId,
+        status,
+        note,
+        courierName,
+        trackingNumber,
+        trackingUrl,
       }),
     );
   }

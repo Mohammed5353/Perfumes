@@ -37,12 +37,12 @@ export default function Footer({ settings }: { settings: FooterSettings }) {
         <footer className=" text-textPrimary font-body">
 
             {/* Footer Links */}
-            <div className="max-w-[1300px] mx-auto px-4 pb-10 text-sm">
+            <div className="max-w-[1300px] mx-auto px-4 pb-10 text-base font-semibold">
                 <div className="flex flex-col md:flex-row justify-between gap-10 border-b border-gray-300 pb-8">
                     {/* Brand Section */}
                     <div className="space-y-4">
                         <h3 className="font-heading text-xl tracking-wide">SCENTORA</h3>
-                        <p className="text-textSecondary">
+                        <p className="font-semibold text-textSecondary">
                             Timeless Scents, Lasting Impressions
                         </p>
 
@@ -68,7 +68,7 @@ export default function Footer({ settings }: { settings: FooterSettings }) {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-10">
                         <div>
                             <h4 className="font-semibold mb-3">Shop</h4>
-                            <ul className="space-y-2 text-textSecondary">
+                            <ul className="space-y-2 font-semibold text-textSecondary">
                                 <li>New Arrivals</li>
                                 <li>Bestsellers</li>
                                 <li>Collections</li>
@@ -77,7 +77,7 @@ export default function Footer({ settings }: { settings: FooterSettings }) {
 
                         <div>
                             <h4 className="font-semibold mb-3">About Us</h4>
-                            <ul className="space-y-2 text-textSecondary">
+                            <ul className="space-y-2 font-semibold text-textSecondary">
                                 <li>
                                     <Link href="/about" className="hover:opacity-70">Our Story</Link>
                                 </li>
@@ -88,7 +88,7 @@ export default function Footer({ settings }: { settings: FooterSettings }) {
 
                         <div>
                             <h4 className="font-semibold mb-3">Customer Care</h4>
-                            <ul className="space-y-2 text-textSecondary">
+                            <ul className="space-y-2 font-semibold text-textSecondary">
                                 <li>
                                     <Link href="/faqs" className="hover:opacity-70">FAQ&apos;s</Link>
                                 </li>
@@ -126,7 +126,7 @@ export default function Footer({ settings }: { settings: FooterSettings }) {
                 </div>
 
                 {/* Bottom Row */}
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-6 text-xs text-textSecondary">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-6 text-sm font-semibold text-textSecondary">
                     <p>© 2025 Scentora. All rights reserved.</p>
                     <div className="flex gap-6">
                         <Link href="/terms" className="hover:opacity-70">Terms of Service</Link>

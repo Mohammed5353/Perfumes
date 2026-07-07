@@ -37,7 +37,7 @@ export default function ShippingReturnsPage() {
             <PolicyCard
               icon={<RefreshCcw className="h-5 w-5" aria-hidden="true" />}
               title="Returns"
-              text="Eligible return or exchange requests must be made within 3 days."
+              text="Eligible return or exchange requests must be made within 15 days."
             />
             <PolicyCard
               icon={<PackageCheck className="h-5 w-5" aria-hidden="true" />}
@@ -102,12 +102,16 @@ export default function ShippingReturnsPage() {
               <p>Returns or exchanges are accepted only if:</p>
               <ul>
                 <li>The product received is damaged, defective, or incorrect.</li>
-                <li>The request is made within 3 days of receiving the order.</li>
+                <li>The request is made within 15 days of receiving the order.</li>
                 <li>
                   The product remains unused, unopened, and in its original
                   packaging.
                 </li>
               </ul>
+              <p>
+                After 15 days from delivery, the return option will no longer be
+                available for that order.
+              </p>
             </PolicySubsection>
 
             <PolicySubsection title="Non-Returnable Items">

@@ -111,8 +111,14 @@ export default function Navbar() {
             <Link href="/" className="hover:opacity-70" prefetch>
               Home
             </Link>
+            <Link href="/home-2" className="hover:opacity-70" prefetch>
+              Home 2
+            </Link>
             <Link href="/shop/all" className="hover:opacity-70" prefetch>
               Shop
+            </Link>
+            <Link href="/shop-by-brand" className="hover:opacity-70" prefetch>
+              Shop by Brand
             </Link>
             <Link href="/best-sellers" className="hover:opacity-70" prefetch>
               Best Sellers
@@ -265,7 +271,9 @@ export default function Navbar() {
             <nav className="flex flex-col gap-1 px-4 pb-3 text-[15px] font-bold text-[#1A1A1A]">
               {[
                 ["Home", "/"],
+                ["Home 2", "/home-2"],
                 ["Shop", "/shop/all"],
+                ["Shop by Brand", "/shop-by-brand"],
                 ["Best Sellers", "/best-sellers"],
                 ["Collection", "/collections/all"],
                 ["Guide", "/guide"],

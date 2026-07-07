@@ -19,7 +19,7 @@ export default async function BestSellers() {
             key={product.id}
             img={product.image}
             title={product.name}
-            price={`$${product.price.toFixed(2)}`}
+            price={product.price.toFixed(3)}
             productId={product.id}
           />
         ))}

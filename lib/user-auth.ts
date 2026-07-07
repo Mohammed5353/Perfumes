@@ -82,13 +82,23 @@ export async function requireCustomerUser(): Promise<CustomerUser | null> {
       emailVerifiedAt: new Date(),
       lastLoginAt: nextLastLoginAt,
     })
+    .onConflictDoUpdate({
+      target: users.email,
+      set: {
+        ...(name ? { name } : {}),
+        lastLoginAt: nextLastLoginAt,
+        updatedAt: new Date(),
+      },
+      setWhere: eq(users.role, "USER"),
+    })
     .returning({
       id: users.id,
       email: users.email,
       name: users.name,
+      role: users.role,
     });
 
-  if (!createdUser) {
+  if (!createdUser || createdUser.role !== "USER") {
     return null;
   }
 

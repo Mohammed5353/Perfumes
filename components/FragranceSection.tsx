@@ -25,8 +25,8 @@ export default async function FragranceSection() {
             description: `${p.notes.join(", ")} perfume`,
             offers: {
                 "@type": "Offer",
-                priceCurrency: "USD",
-                price: p.price.toFixed(2),
+                priceCurrency: "KWD",
+                price: p.price.toFixed(3),
                 availability: "https://schema.org/InStock",
             },
         })),

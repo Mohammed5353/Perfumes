@@ -9,6 +9,7 @@ import {
   removeGuestCartItem,
   updateGuestCartItem,
 } from "@/lib/guest-cart";
+import { formatKwd } from "@/lib/currency";
 
 type CartItem = {
   id: string;
@@ -193,7 +194,7 @@ export default function CartView() {
                   <div>
                     <h2 className="font-heading text-2xl font-semibold">{item.name}</h2>
                     <p className="mt-1 text-sm text-textSecondary">
-                      ${item.price.toFixed(2)}
+                      {formatKwd(item.price)}
                     </p>
                     {item.scentOption ? (
                       <p className="mt-1 text-sm font-semibold text-textPrimary">
@@ -246,10 +247,10 @@ export default function CartView() {
             <aside className="h-fit rounded-lg border border-black/10 bg-white p-5">
               <div className="flex items-center justify-between border-b border-black/10 pb-4">
                 <span className="font-medium">Subtotal</span>
-                <span className="font-semibold">${subtotal.toFixed(2)}</span>
+                <span className="font-semibold">{formatKwd(subtotal)}</span>
               </div>
               <Link
-                href={guestMode ? "/sign-in?redirect_url=/checkout" : "/checkout"}
+                href="/checkout"
                 className="mt-5 flex min-h-11 w-full items-center justify-center rounded-lg bg-black px-4 text-sm font-semibold text-white hover:bg-black/85"
               >
                 Proceed to checkout

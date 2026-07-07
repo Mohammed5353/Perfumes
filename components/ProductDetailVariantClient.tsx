@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Gift, ShieldCheck, Truck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Gift, ShieldCheck, Truck } from "lucide-react";
 import ProductDetailPurchase from "@/components/ProductDetailPurchase";
-import ProductScentSelector from "@/components/ProductScentSelector";
+import { formatKwd } from "@/lib/currency";
 
 type Variant = {
   id: string;
@@ -51,7 +51,7 @@ export default function ProductDetailVariantClient({
       : product.notes.slice(0, 6);
 
   const initialSelected = scentOptions[0] ?? "";
-  const [selectedScent, setSelectedScent] = React.useState(initialSelected);
+  const selectedScent = initialSelected;
 
   const activeVariant = hasVariants
     ? variants.find((variant) => variant.name === selectedScent) ?? variants[0] ?? null
@@ -62,6 +62,29 @@ export default function ProductDetailVariantClient({
   const displayImage = activeVariant?.image ?? product.image;
   const displayPrice = activeVariant?.price ?? product.price;
   const displayStock = activeVariant?.stock ?? product.stock;
+  const galleryImages = React.useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [product.image, ...variants.map((variant) => variant.image)].filter(Boolean),
+        ),
+      ),
+    [product.image, variants],
+  );
+  const [activeImageIndex, setActiveImageIndex] = React.useState(0);
+  const activeGalleryImage = galleryImages[activeImageIndex] ?? displayImage;
+
+  function moveGallery(direction: -1 | 1) {
+    setActiveImageIndex((index) => {
+      const nextIndex = index + direction;
+
+      if (nextIndex < 0) {
+        return galleryImages.length - 1;
+      }
+
+      return nextIndex % galleryImages.length;
+    });
+  }
 
   return (
     <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1.02fr)_minmax(420px,0.98fr)] lg:items-start">
@@ -87,13 +110,33 @@ export default function ProductDetailVariantClient({
 
           <div className="relative mx-auto my-8 aspect-[4/5] w-[min(78vw,430px)] overflow-hidden rounded-2xl bg-white/8 shadow-[0_35px_80px_rgba(0,0,0,0.42)] ring-1 ring-white/14 sm:w-[min(58vw,460px)]">
             <Image
-              src={displayImage}
+              src={activeGalleryImage}
               alt={`${displayName} perfume bottle`}
               fill
               sizes="(max-width: 1024px) 86vw, 46vw"
               className="object-cover"
               priority
             />
+            {galleryImages.length > 1 ? (
+              <div className="absolute inset-x-3 top-1/2 flex -translate-y-1/2 justify-between">
+                <button
+                  type="button"
+                  aria-label="Previous product image"
+                  onClick={() => moveGallery(-1)}
+                  className="grid h-10 w-10 place-items-center rounded-full border border-white/35 bg-black/30 text-white backdrop-blur transition hover:bg-white hover:text-black"
+                >
+                  <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next product image"
+                  onClick={() => moveGallery(1)}
+                  className="grid h-10 w-10 place-items-center rounded-full border border-white/35 bg-black/30 text-white backdrop-blur transition hover:bg-white hover:text-black"
+                >
+                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+            ) : null}
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
                 Signature profile
@@ -110,6 +153,33 @@ export default function ProductDetailVariantClient({
               </div>
             </div>
           </div>
+
+          {galleryImages.length > 1 ? (
+            <div className="mx-auto -mt-4 flex w-full max-w-[460px] gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {galleryImages.map((image, index) => (
+                <button
+                  key={`${image}-${index}`}
+                  type="button"
+                  aria-label={`Show product image ${index + 1}`}
+                  aria-pressed={index === activeImageIndex}
+                  onClick={() => setActiveImageIndex(index)}
+                  className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border transition ${
+                    index === activeImageIndex
+                      ? "border-white ring-2 ring-accent"
+                      : "border-white/20 opacity-70 hover:opacity-100"
+                  }`}
+                >
+                  <Image
+                    src={image}
+                    alt={`${displayName} thumbnail ${index + 1}`}
+                    fill
+                    sizes="64px"
+                    className="object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-3 gap-2 text-center text-xs font-semibold text-white/82">
             <VisualStat value="5-9 PM" label="Delivery slot" />
@@ -137,21 +207,13 @@ export default function ProductDetailVariantClient({
                 Price
               </p>
               <p className="mt-1 text-4xl font-semibold text-accent">
-                ${displayPrice.toFixed(2)}
+                {formatKwd(displayPrice)}
               </p>
             </div>
             <div className="rounded-lg bg-[#f6f0df] px-4 py-3 text-sm font-semibold text-textPrimary">
               {displayStock > 0 ? `${displayStock} pieces available` : "Out of stock"}
             </div>
           </div>
-
-          {hasVariants ? (
-            <ProductScentSelector
-              options={scentOptions}
-              selected={selectedScent}
-              onChange={setSelectedScent}
-            />
-          ) : null}
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <DetailItem label="Model no" value={displayModelNo} />
@@ -177,8 +239,7 @@ export default function ProductDetailVariantClient({
               price: variant.price,
             }))}
             selectedScent={hasVariants ? selectedScent : undefined}
-            onSelectedScentChange={hasVariants ? setSelectedScent : undefined}
-            hideSelector={hasVariants}
+            hideSelector
           />
         </section>
 
